@@ -7,7 +7,7 @@ use egui::{IconData, Theme, ViewportCommand};
 struct TriangleGator {}
 
 fn main() -> Result {
-    let icon_image = image::open("assets/gator-icon.png").expect("Should be able to open icon PNG file");
+    let icon_image = image::open("assets/narly.png").expect("Should be able to open icon PNG file");
     let width = icon_image.width();
     let height = icon_image.height();
     let icon_rgba8 = icon_image.into_rgba8().to_vec();
@@ -45,6 +45,11 @@ impl App for TriangleGator {
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
             ui.label("Hello :P");
+
+            ui.horizontal(|ui| {
+                if ui.button("Place Point").clicked() { }   
+                if ui.button("Reset Calculation").clicked() { }   
+            });
         });
     }
 }
