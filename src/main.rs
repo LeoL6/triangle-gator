@@ -1,12 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-extern crate wifiscanner;
-
-use eframe::*;
+use eframe::{*};
 use egui::{IconData, Theme, ViewportCommand};
+use std::{process::Command};
 
 #[derive(Default)]
-struct TriangleGator {}
+struct TriangleGator {
+    available_networks: Vec<String>, // Store networks in a vector
+    selected_network: String
+}
 
 fn main() -> Result {
     let icon_image = image::open("assets/narly.png").expect("Should be able to open icon PNG file");
@@ -32,7 +34,7 @@ fn main() -> Result {
     run_native(
         "Triangle Gator", 
         options, 
-        Box::new(|cc| {
+        Box::new(|_cc| {
             Ok(Box::new(TriangleGator::default()))
         }) 
     )
@@ -43,14 +45,81 @@ impl App for TriangleGator {
         egui::Rgba::TRANSPARENT.to_array() // Make sure we don't paint anything behind the rounded corners
     }
 
-    fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
+
             ui.label("Hello :P");
+
+            ui.centered_and_justified(|ui| { // Centers the content
+                egui::Frame::NONE
+                .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)) // Border thickness and color
+                .outer_margin(egui::Margin::same(5)) // Space outside the border
+                .inner_margin(egui::Margin::same(10)) // Space insode of the border
+                .corner_radius(5.0) // Optional: Rounded corners
+                .show(ui, |ui| {
+                    if !self.selected_network.trim().is_empty() {
+                        // egui::Area::
+                        // TRIANGLE CODE
+                        let points = vec![
+                            egui::Pos2::new(100.0, 50.0), // Top point
+                            egui::Pos2::new(50.0, 150.0), // Bottom-left point
+                            egui::Pos2::new(150.0, 150.0), // Bottom-right point
+                        ];
+
+                        // Draw the triangle using the points
+                        ui.painter().add(egui::Shape::convex_polygon(
+                            points, 
+                            egui::Color32::from_black_alpha(0), // Color of the triangle
+                            egui::Stroke::new(1.0, egui::Color32::WHITE), // No border
+                        ));
+
+                        // ui.label(self.selected_network);
+                    } else {
+                        egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .max_width(200.0)
+                        .show(ui, |ui| {
+                            // Display all networks in the network list
+                            for network in &self.available_networks {
+                                ui.vertical(|ui|{
+                                    if ui.button(network).clicked() {
+                                        println!("Selecting {}", network);
+                                        self.selected_network = network.to_string();
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            });
 
             ui.horizontal(|ui| {
                 if ui.button("Place Point").clicked() { }   
-                if ui.button("Reset Calculation").clicked() { println!("{:?}", wifiscanner::scan()); }   
+                if ui.button("Reset Calculation").clicked() {
+                    let output = Command::new("nmcli")
+                    .args(&["-t", "-f", "SSID, SIGNAL", "dev", "wifi"])
+                    .output()
+                    .expect("Failed to execute nmcli");
+            
+                    if output.status.success() {
+                        self.available_networks.clear();
+                        let networks = String::from_utf8_lossy(&output.stdout);
+                        if networks.trim().is_empty() {
+                            print!("Could not find any networks");
+                        } else {
+                            for network in networks.lines() {
+                                let mut parts = network.splitn(2, ':'); // Split SSID and SIGNAL at the colon
+                                if let (Some(ssid), Some(signal)) = (parts.next(), parts.next()) {
+                                    let network_info = format!("{} (Signal: {}%)", ssid, signal);
+                                    self.available_networks.push(network_info);
+                                }
+                            }
+                        }
+                    } else {
+                        eprintln!("Error running nmcli: {}", String::from_utf8_lossy(&output.stderr));
+                    }
+                }
             });
         });
     }
