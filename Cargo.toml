@@ -5,5 +5,6 @@ edition = "2021"
 
 [dependencies]
 image={version="*", default-features=false, features=["png"]}
+wifiscanner = "0.5.*"
 eframe = "*"
 egui = "*"

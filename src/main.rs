@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+extern crate wifiscanner;
+
 use eframe::*;
 use egui::{IconData, Theme, ViewportCommand};
 
@@ -48,7 +50,7 @@ impl App for TriangleGator {
 
             ui.horizontal(|ui| {
                 if ui.button("Place Point").clicked() { }   
-                if ui.button("Reset Calculation").clicked() { }   
+                if ui.button("Reset Calculation").clicked() { println!("{:?}", wifiscanner::scan()); }   
             });
         });
     }
