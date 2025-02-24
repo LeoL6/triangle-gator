@@ -1,13 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::{*};
-use egui::{IconData, Theme, ViewportCommand};
+use egui::{IconData, Theme, Ui, ViewportCommand};
 use std::process::Command;
 
 #[derive(Default)]
 struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
     selected_network: String
+    // side_lengths: Vec3
 }
 
 fn main() -> Result {
@@ -51,9 +52,7 @@ impl App for TriangleGator {
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
 
-            ui.label("Hello :P");
-
-            ui.centered_and_justified(|ui| { // Centers the content
+            ui.horizontal_centered(|ui| { // Centers the content
                 egui::Frame::NONE
                 .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)) // Border thickness and color
                 .outer_margin(egui::Margin::same(5)) // Space outside the border
@@ -62,20 +61,7 @@ impl App for TriangleGator {
                 .fill(egui::Color32::from_black_alpha(0))
                 .show(ui, |ui| {
                     if !self.selected_network.trim().is_empty() {
-                        // TRIANGLE CODE
-                        let points = vec![
-                            egui::Pos2::new(100.0, 50.0), // Top point
-                            egui::Pos2::new(50.0, 150.0), // Bottom-left point
-                            egui::Pos2::new(150.0, 150.0), // Bottom-right point
-                        ];
-
-                        // Draw the triangle using the points
-                        ui.painter().add(egui::Shape::convex_polygon(
-                            points, 
-                            egui::Color32::from_black_alpha(0), // Color of the triangle
-                            egui::Stroke::new(1.0, egui::Color32::WHITE), // No border
-                        ));
-
+                        draw_triangle(ui);
                         // ui.label(self.selected_network);
                     } else {
                         egui::ScrollArea::vertical()
@@ -94,6 +80,9 @@ impl App for TriangleGator {
                         });
                     }
                 });
+                // if !is_network_selected(self){
+                //     ui.label(self.selected_network.to_string());
+                // }
             });
 
             ui.horizontal(|ui| {
@@ -107,8 +96,24 @@ impl App for TriangleGator {
     }
 }
 
+fn draw_triangle(ui: &mut Ui) {
+    // TRIANGLE CODE
+    let points = vec![
+        egui::Pos2::new(100.0, 50.0), // Top point
+        egui::Pos2::new(50.0, 150.0), // Bottom-left point
+        egui::Pos2::new(150.0, 150.0), // Bottom-right point
+    ];
+
+    // Draw the triangle using the points
+    ui.painter().add(egui::Shape::convex_polygon(
+        points, 
+        egui::Color32::from_black_alpha(0), // Color of the triangle
+        egui::Stroke::new(1.0, egui::Color32::WHITE), // No border
+    ));
+}
+
 fn list_networks(selph: &mut TriangleGator) {
-    if selph.available_networks.is_empty() {
+    if is_network_selected(selph) {
         let output = Command::new("nmcli")
         .args(&["-t", "-f", "SSID, SIGNAL", "dev", "wifi"])
         .output()
@@ -133,6 +138,22 @@ fn list_networks(selph: &mut TriangleGator) {
         }
     }
 }
+
+fn is_network_selected(selph: &mut TriangleGator) -> bool {
+    return selph.selected_network.trim().is_empty();
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 fn custom_window_frame(ctx: &egui::Context, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     use egui::{CentralPanel, UiBuilder};
