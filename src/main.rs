@@ -2,7 +2,7 @@
 
 use eframe::{*};
 use egui::{IconData, Theme, ViewportCommand};
-use std::{process::Command};
+use std::process::Command;
 
 #[derive(Default)]
 struct TriangleGator {
@@ -40,12 +40,14 @@ fn main() -> Result {
     )
 }
 
-impl App for TriangleGator {
+impl App for TriangleGator {        
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         egui::Rgba::TRANSPARENT.to_array() // Make sure we don't paint anything behind the rounded corners
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
+        list_networks(self);
+
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
 
@@ -57,9 +59,9 @@ impl App for TriangleGator {
                 .outer_margin(egui::Margin::same(5)) // Space outside the border
                 .inner_margin(egui::Margin::same(10)) // Space insode of the border
                 .corner_radius(5.0) // Optional: Rounded corners
+                .fill(egui::Color32::from_black_alpha(0))
                 .show(ui, |ui| {
                     if !self.selected_network.trim().is_empty() {
-                        // egui::Area::
                         // TRIANGLE CODE
                         let points = vec![
                             egui::Pos2::new(100.0, 50.0), // Top point
@@ -97,31 +99,38 @@ impl App for TriangleGator {
             ui.horizontal(|ui| {
                 if ui.button("Place Point").clicked() { }   
                 if ui.button("Reset Calculation").clicked() {
-                    let output = Command::new("nmcli")
-                    .args(&["-t", "-f", "SSID, SIGNAL", "dev", "wifi"])
-                    .output()
-                    .expect("Failed to execute nmcli");
-            
-                    if output.status.success() {
-                        self.available_networks.clear();
-                        let networks = String::from_utf8_lossy(&output.stdout);
-                        if networks.trim().is_empty() {
-                            print!("Could not find any networks");
-                        } else {
-                            for network in networks.lines() {
-                                let mut parts = network.splitn(2, ':'); // Split SSID and SIGNAL at the colon
-                                if let (Some(ssid), Some(signal)) = (parts.next(), parts.next()) {
-                                    let network_info = format!("{} (Signal: {}%)", ssid, signal);
-                                    self.available_networks.push(network_info);
-                                }
-                            }
-                        }
-                    } else {
-                        eprintln!("Error running nmcli: {}", String::from_utf8_lossy(&output.stderr));
-                    }
+                    self.selected_network.clear();
+                    list_networks(self);
                 }
             });
         });
+    }
+}
+
+fn list_networks(selph: &mut TriangleGator) {
+    if selph.available_networks.is_empty() {
+        let output = Command::new("nmcli")
+        .args(&["-t", "-f", "SSID, SIGNAL", "dev", "wifi"])
+        .output()
+        .expect("Failed to execute nmcli");
+
+        if output.status.success() {
+            selph.available_networks.clear();
+            let networks = String::from_utf8_lossy(&output.stdout);
+            if networks.trim().is_empty() {
+                print!("Could not find any networks");
+            } else {
+                for network in networks.lines() {
+                    let mut parts = network.splitn(2, ':'); // Split SSID and SIGNAL at the colon
+                    if let (Some(ssid), Some(signal)) = (parts.next(), parts.next()) {
+                        let network_info = format!("{} (Signal: {}%)", ssid, signal);
+                        selph.available_networks.push(network_info);
+                    }
+                }
+            }
+        } else {
+            eprintln!("Error running nmcli: {}", String::from_utf8_lossy(&output.stderr));
+        }
     }
 }
 
