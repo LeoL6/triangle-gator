@@ -1,6 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+// BROWN SUGAR OAT AMERICANO
+
+mod trilateration_calc;
+
 use eframe::{*};
+use eframe::egui::{self, Event, Vec2};
+
+use egui_plot::{Legend, Line, PlotPoints};
+
 use emath::Pos2;
 use egui::{IconData, Theme, Ui, ViewportCommand};
 use std::process::Command;
@@ -10,6 +18,14 @@ struct TriangleGator {
     selected_network: String, // Store the currently selected network
     points: [Pos2; 3],  // Triangle vertices
     selected_side: Option<usize>, // Index of selected side
+
+
+    lock_x: bool,
+    lock_y: bool,
+    ctrl_to_zoom: bool,
+    shift_to_horizontal: bool,
+    zoom_speed: f32,
+    scroll_speed: f32,
 }
 
 impl Default for TriangleGator {
@@ -23,6 +39,13 @@ impl Default for TriangleGator {
                 Pos2::new(200.0, 200.0),  // Bottom right
             ],
             selected_side: None,
+
+            lock_x: false,
+            lock_y: false,
+            ctrl_to_zoom: false,
+            shift_to_horizontal: false,
+            zoom_speed: 1.0,
+            scroll_speed: 1.0,
         }
     }
 }
@@ -77,12 +100,71 @@ impl App for TriangleGator {
                     .fill(egui::Color32::from_black_alpha(0))
                     .show(ui, |ui| {
                         ui.set_min_width(200.0);
-            
+
+                        let (scroll, pointer_down, modifiers) = ui.input(|i| {
+                            let scroll = i.events.iter().find_map(|e| match e {
+                                Event::MouseWheel {
+                                    unit: _,
+                                    delta,
+                                    modifiers: _,
+                                } => Some(*delta),
+                                _ => None,
+                            });
+                            (scroll, i.pointer.primary_down(), i.modifiers)
+                        });
+
                         if !self.selected_network.trim().is_empty() {
-                            ui.horizontal(|ui| {
-                                if ui.button("Point 1").clicked() { }   
-                                if ui.button("Point 2").clicked() { }   
-                                if ui.button("Point 3").clicked() { }   
+                            egui_plot::Plot::new("plot")
+                            .allow_zoom(false)
+                            .allow_drag(false)
+                            .allow_scroll(false)
+                            .show_axes(false)
+                            .legend(Legend::default())
+                            .width(272.0)
+                            .height(200.0)
+                            .min_size(egui::vec2(0.0, 180.0))
+                            .show(ui, |plot_ui| {
+                                if let Some(mut scroll) = scroll {
+                                    if modifiers.ctrl == self.ctrl_to_zoom {
+                                        scroll = Vec2::splat(scroll.x + scroll.y);
+                                        let mut zoom_factor = Vec2::from([
+                                            (scroll.x * self.zoom_speed / 10.0).exp(),
+                                            (scroll.y * self.zoom_speed / 10.0).exp(),
+                                        ]);
+                                        if self.lock_x {
+                                            zoom_factor.x = 1.0;
+                                        }
+                                        if self.lock_y {
+                                            zoom_factor.y = 1.0;
+                                        }
+                                        plot_ui.zoom_bounds_around_hovered(zoom_factor);
+                                    } else {
+                                        if modifiers.shift == self.shift_to_horizontal {
+                                            scroll = Vec2::new(scroll.y, scroll.x);
+                                        }
+                                        if self.lock_x {
+                                            scroll.x = 0.0;
+                                        }
+                                        if self.lock_y {
+                                            scroll.y = 0.0;
+                                        }
+                                        let delta_pos = self.scroll_speed * scroll;
+                                        plot_ui.translate_bounds(delta_pos);
+                                    }
+                                }
+                                if plot_ui.response().hovered() && pointer_down {
+                                    let mut pointer_translate = -plot_ui.pointer_coordinate_drag_delta();
+                                    if self.lock_x {
+                                        pointer_translate.x = 0.0;
+                                    }
+                                    if self.lock_y {
+                                        pointer_translate.y = 0.0;
+                                    }
+                                    plot_ui.translate_bounds(pointer_translate);
+                                }
+
+                                let sine_points = PlotPoints::from_explicit_callback(|x| x.sin(), .., 5000);
+                                plot_ui.line(Line::new(sine_points));
                             });
 
                             // TRIANGLE LOGIC | NOT COMPLETE YET | WIP, I DONT GIVE A FUCK
@@ -132,24 +214,24 @@ impl App for TriangleGator {
                             // }
                         } else {
                             egui::ScrollArea::vertical()
-                                .max_height(200.0)
-                                .show(ui, |ui| {
-                                    ui.vertical_centered(|ui| {
-                                        for network in &self.available_networks {
-                                            if ui.button(network).clicked() {
-                                                println!("Selecting {}", network);
-                                                self.selected_network = network.to_string();
-                                            }
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                ui.vertical_centered(|ui| {
+                                    for network in &self.available_networks {
+                                        if ui.button(network).clicked() {
+                                            println!("Selecting {}", network);
+                                            self.selected_network = network.to_string();
                                         }
-                                    });
+                                    }
                                 });
+                            });
                         }
                     });
-            
-                if !is_network_selected(self) {
-                    ui.label(self.selected_network.to_string());
-                }
             });
+
+            if !is_network_selected(self) {
+                ui.label(self.selected_network.to_string());
+            }
 
             ui.horizontal(|ui| {
                 if ui.button("Place Point").clicked() { }   
@@ -205,16 +287,6 @@ fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
     // Calculate the closest point on the line
     start + t * line_vec
 }
-
-
-// ===========================================================================================================
-
-
-
-
-
-// ===========================================================================================================
-
 
 
 
