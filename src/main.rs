@@ -1,14 +1,30 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::{*};
+use emath::Pos2;
 use egui::{IconData, Theme, Ui, ViewportCommand};
 use std::process::Command;
 
-#[derive(Default)]
 struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
-    selected_network: String
-    // side_lengths: Vec3
+    selected_network: String, // Store the currently selected network
+    points: [Pos2; 3],  // Triangle vertices
+    selected_side: Option<usize>, // Index of selected side
+}
+
+impl Default for TriangleGator {
+    fn default() -> Self {
+        Self {
+            available_networks: Vec::new(),
+            selected_network: String::new(),
+            points: [
+                Pos2::new(150.0, 114.0),  // Top
+                Pos2::new(100.0, 200.0),  // Bottom left
+                Pos2::new(200.0, 200.0),  // Bottom right
+            ],
+            selected_side: None,
+        }
+    }
 }
 
 fn main() -> Result {
@@ -52,37 +68,87 @@ impl App for TriangleGator {
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
 
-            ui.horizontal_centered(|ui| { // Centers the content
+            ui.horizontal_centered(|ui| {
                 egui::Frame::NONE
-                .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)) // Border thickness and color
-                .outer_margin(egui::Margin::same(5)) // Space outside the border
-                .inner_margin(egui::Margin::same(10)) // Space insode of the border
-                .corner_radius(5.0) // Optional: Rounded corners
-                .fill(egui::Color32::from_black_alpha(0))
-                .show(ui, |ui| {
-                    if !self.selected_network.trim().is_empty() {
-                        draw_triangle(ui);
-                        // ui.label(self.selected_network);
-                    } else {
-                        egui::ScrollArea::vertical()
-                        .max_height(200.0)
-                        .max_width(200.0)
-                        .show(ui, |ui| {
-                            // Display all networks in the network list
-                            for network in &self.available_networks {
-                                ui.vertical(|ui|{
-                                    if ui.button(network).clicked() {
-                                        println!("Selecting {}", network);
-                                        self.selected_network = network.to_string();
-                                    }
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)) // Border thickness and color
+                    .outer_margin(egui::Margin::same(12)) // Space outside the border
+                    .inner_margin(egui::Margin::same(10)) // Space inside of the border
+                    .corner_radius(5.0) // Optional: Rounded corners
+                    .fill(egui::Color32::from_black_alpha(0))
+                    .show(ui, |ui| {
+                        ui.set_min_width(200.0);
+            
+                        if !self.selected_network.trim().is_empty() {
+                            ui.horizontal(|ui| {
+                                if ui.button("Point 1").clicked() { }   
+                                if ui.button("Point 2").clicked() { }   
+                                if ui.button("Point 3").clicked() { }   
+                            });
+
+                            // TRIANGLE LOGIC | NOT COMPLETE YET | WIP, I DONT GIVE A FUCK
+                            // Define canvas size 
+                            // let canvas_size = egui::vec2(200.0, 200.0);
+                            // let (rect, response) = ui.allocate_exact_size(canvas_size, egui::Sense::click_and_drag());
+            
+                            // let painter = ui.painter();
+                            // let stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
+            
+                            // // Draw triangle edges
+                            // for i in 0..3 {
+                            //     let p1 = self.points[i];
+                            //     let p2 = self.points[(i + 1) % 3];
+                            //     let color = if self.selected_side == Some(i) {
+                            //         egui::Color32::RED  // Highlight selected side
+                            //     } else {
+                            //         egui::Color32::WHITE
+                            //     };
+                            //     painter.line_segment([p1, p2], egui::Stroke::new(3.0, color));
+                            // }
+            
+                            // // Handle clicks on the canvas
+                            // if response.clicked() {
+                            //     if let Some(mouse_pos) = response.interact_pointer_pos() {
+                            //         for i in 0..3 {
+                            //             let p1 = self.points[i];
+                            //             let p2 = self.points[(i + 1) % 3];
+            
+                            //             let closest_point = closest_point_on_line_segment(mouse_pos, p1, p2);
+                            //             let distance = mouse_pos.distance(closest_point);
+                            //             let threshold = 5.0; // Click sensitivity
+            
+                            //             if distance < threshold {
+                            //                 self.selected_side = if Some(i) == self.selected_side { None } else { Some(i) };
+                            //                 break;
+                            //             }
+                            //         }
+                            //     }
+                            // }
+            
+                            // // Show which side is selected
+                            // if let Some(side) = self.selected_side {
+                            //     ui.label(format!("Selected Side: {}", side + 1));
+                            // } else {
+                            //     ui.label("No side selected");
+                            // }
+                        } else {
+                            egui::ScrollArea::vertical()
+                                .max_height(200.0)
+                                .show(ui, |ui| {
+                                    ui.vertical_centered(|ui| {
+                                        for network in &self.available_networks {
+                                            if ui.button(network).clicked() {
+                                                println!("Selecting {}", network);
+                                                self.selected_network = network.to_string();
+                                            }
+                                        }
+                                    });
                                 });
-                            }
-                        });
-                    }
-                });
-                // if !is_network_selected(self){
-                //     ui.label(self.selected_network.to_string());
-                // }
+                        }
+                    });
+            
+                if !is_network_selected(self) {
+                    ui.label(self.selected_network.to_string());
+                }
             });
 
             ui.horizontal(|ui| {
@@ -94,22 +160,6 @@ impl App for TriangleGator {
             });
         });
     }
-}
-
-fn draw_triangle(ui: &mut Ui) {
-    // TRIANGLE CODE
-    let points = vec![
-        egui::Pos2::new(100.0, 50.0), // Top point
-        egui::Pos2::new(50.0, 150.0), // Bottom-left point
-        egui::Pos2::new(150.0, 150.0), // Bottom-right point
-    ];
-
-    // Draw the triangle using the points
-    ui.painter().add(egui::Shape::convex_polygon(
-        points, 
-        egui::Color32::from_black_alpha(0), // Color of the triangle
-        egui::Stroke::new(1.0, egui::Color32::WHITE), // No border
-    ));
 }
 
 fn list_networks(selph: &mut TriangleGator) {
@@ -143,9 +193,27 @@ fn is_network_selected(selph: &mut TriangleGator) -> bool {
     return selph.selected_network.trim().is_empty();
 }
 
+// Function to calculate the closest point on a line segment from a given point
+fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
+    let line_vec = end - start;
+    let point_vec = point - start;
+
+    // Project the point onto the line (clamped between the start and end points)
+    let t = (point_vec.x * line_vec.x + point_vec.y * line_vec.y) / (line_vec.x * line_vec.x + line_vec.y * line_vec.y);
+    let t = t.clamp(0.0, 1.0);
+
+    // Calculate the closest point on the line
+    start + t * line_vec
+}
+
+
+// ===========================================================================================================
 
 
 
+
+
+// ===========================================================================================================
 
 
 
