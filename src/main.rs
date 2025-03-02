@@ -7,11 +7,12 @@ mod trilateration_calc;
 use eframe::{*};
 use eframe::egui::{self, Event, Vec2};
 
-use egui_plot::{Legend, Line, PlotPoints};
+use egui_plot::{Legend, Line, PlotItem, PlotPoints, Polygon};
 
 use emath::Pos2;
 use egui::{IconData, Theme, Ui, ViewportCommand};
 use std::process::Command;
+use std::vec;
 
 struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
@@ -163,8 +164,30 @@ impl App for TriangleGator {
                                     plot_ui.translate_bounds(pointer_translate);
                                 }
 
-                                let sine_points = PlotPoints::from_explicit_callback(|x| x.sin(), .., 5000);
-                                plot_ui.line(Line::new(sine_points));
+                                // let sine_points = PlotPoints::from_explicit_callback(|x| x.sin(), .., 5000);
+                                // plot_ui.line(Line::new(sine_points));
+
+                                let triangle_points = vec![
+                                    [0.0, 10.0],
+                                    [100.0, 10.0],
+                                    [50.0, 96.0],
+                                    [0.0, 10.0],
+                                ];
+
+                                // let polygon = Polygon::new(PlotPoints::from(triangle_points.clone())).allow_hover(true).fill_color(egui::Color32::from_rgb(0, 255, 0));
+
+                                // plot_ui.polygon(polygon);
+
+                                let line = Line::new(PlotPoints::from(triangle_points)).allow_hover(true);
+
+                                plot_ui.line(line);
+
+                                // if plot_ui.response().hovered() && pointer_down {
+                                //     let mut pointer_translate = -plot_ui.pointer_coordinate_drag_delta();
+                                //     if line {
+                                //         pointer_translate.x = 0.0;
+                                //     }
+                                // }
                             });
 
                             // TRIANGLE LOGIC | NOT COMPLETE YET | WIP, I DONT GIVE A FUCK
@@ -228,11 +251,17 @@ impl App for TriangleGator {
                         }
                     });
             });
-
+            
             if !is_network_selected(self) {
                 ui.label(self.selected_network.to_string());
             }
 
+            ui.horizontal(|ui| {
+                if ui.button("Point One").clicked() { }   
+                if ui.button("Point Two").clicked() { }   
+                if ui.button("Point Three").clicked() { }   
+            });
+                
             ui.horizontal(|ui| {
                 if ui.button("Place Point").clicked() { }   
                 if ui.button("Reset Calculation").clicked() {
