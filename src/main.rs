@@ -263,7 +263,12 @@ impl App for TriangleGator {
             });
                 
             ui.horizontal(|ui| {
-                if ui.button("Place Point").clicked() { }   
+                if ui.button("Place Point").clicked() {
+                    let trilat_calc = trilateration_calc::TrilaterationCalculator::default();
+
+                    // trilat_calc.test_levmar();
+                    trilat_calc.test_calc();
+                }   
                 if ui.button("Reset Calculation").clicked() {
                     self.selected_network.clear();
                     list_networks(self);
