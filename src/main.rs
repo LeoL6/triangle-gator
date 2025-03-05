@@ -7,17 +7,19 @@ mod trilateration_calc;
 use eframe::{*};
 use eframe::egui::{self, Event, Vec2};
 
-use egui_plot::{Legend, Line, PlotItem, PlotPoints, Polygon};
+use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
 use emath::Pos2;
-use egui::{IconData, Theme, Ui, ViewportCommand};
+use egui::{IconData, Theme, ViewportCommand};
+use trilateration_calc::Point;
 use std::process::Command;
 use std::vec;
 
+// COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
     selected_network: String, // Store the currently selected network
-    points: [Pos2; 3],  // Triangle vertices
+    points: [Point; 3],  // Triangle points
     selected_side: Option<usize>, // Index of selected side
 
 
@@ -35,9 +37,9 @@ impl Default for TriangleGator {
             available_networks: Vec::new(),
             selected_network: String::new(),
             points: [
-                Pos2::new(150.0, 114.0),  // Top
-                Pos2::new(100.0, 200.0),  // Bottom left
-                Pos2::new(200.0, 200.0),  // Bottom right
+                Point::new(0.0, 10.0, 0.0),  // Top
+                Point::new(100.0, 10.0, 0.0),  // Bottom left
+                Point::new(50.0, 96.0, 0.0),  // Bottom right
             ],
             selected_side: None,
 
@@ -124,6 +126,13 @@ impl App for TriangleGator {
                             .width(272.0)
                             .height(200.0)
                             .min_size(egui::vec2(0.0, 180.0))
+                            .label_formatter(|name, value| {
+                                if name.is_empty() {
+                                    format!("{}: {:.*}%", name, 1, value.y)
+                                } else {
+                                    "".to_owned()
+                                }
+                            })
                             .show(ui, |plot_ui| {
                                 if let Some(mut scroll) = scroll {
                                     if modifiers.ctrl == self.ctrl_to_zoom {
@@ -167,20 +176,19 @@ impl App for TriangleGator {
                                 // let sine_points = PlotPoints::from_explicit_callback(|x| x.sin(), .., 5000);
                                 // plot_ui.line(Line::new(sine_points));
 
-                                let triangle_points = vec![
-                                    [0.0, 10.0],
-                                    [100.0, 10.0],
-                                    [50.0, 96.0],
-                                    [0.0, 10.0],
-                                ];
+                                let mut points_vec = vec![];
+
+                                self.points.iter().clone().for_each(|point| {
+                                    points_vec.push([f64::from(point.x), f64::from(point.y)]);
+                                });
 
                                 // let polygon = Polygon::new(PlotPoints::from(triangle_points.clone())).allow_hover(true).fill_color(egui::Color32::from_rgb(0, 255, 0));
 
                                 // plot_ui.polygon(polygon);
 
-                                let line = Line::new(PlotPoints::from(triangle_points)).allow_hover(true);
+                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).allow_hover(true);
 
-                                plot_ui.line(line);
+                                plot_ui.polygon(triangle_bounds);
 
                                 // if plot_ui.response().hovered() && pointer_down {
                                 //     let mut pointer_translate = -plot_ui.pointer_coordinate_drag_delta();
