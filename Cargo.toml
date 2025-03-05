@@ -8,6 +8,4 @@ image={version="*", default-features=false, features=["png"]}
 egui_plot = "*"
 eframe = "*"
 egui = "*"
-# STUPID MATH SHIT
-levenberg-marquardt = "0.14.0"
 nalgebra = "*"
