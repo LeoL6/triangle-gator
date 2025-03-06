@@ -5,12 +5,13 @@
 mod trilateration_calc;
 
 use eframe::{*};
-use eframe::egui::{self, Event, Vec2};
+use eframe::egui::{self, Event, Vec2, FontId, FontFamily::Proportional};
 
-use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
+use egui::epaint::CircleShape;
+use egui_plot::{Legend, PlotPoints, Polygon};
 
 use emath::Pos2;
-use egui::{IconData, Theme, ViewportCommand};
+use egui::{Color32, IconData, Painter, Stroke, Theme, ViewportCommand};
 use trilateration_calc::Point;
 use std::process::Command;
 use std::vec;
@@ -20,7 +21,7 @@ struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
     selected_network: String, // Store the currently selected network
     points: [Point; 3],  // Triangle points
-    selected_side: Option<usize>, // Index of selected side
+    selected_point: Option<Point>, // Index of selected side
 
 
     lock_x: bool,
@@ -41,7 +42,7 @@ impl Default for TriangleGator {
                 Point::new(100.0, 10.0, 0.0),  // Bottom left
                 Point::new(50.0, 96.0, 0.0),  // Bottom right
             ],
-            selected_side: None,
+            selected_point: None,
 
             lock_x: false,
             lock_y: false,
@@ -97,14 +98,14 @@ impl App for TriangleGator {
             ui.horizontal_centered(|ui| {
                 egui::Frame::NONE
                     .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)) // Border thickness and color
-                    .outer_margin(egui::Margin::same(12)) // Space outside the border
-                    .inner_margin(egui::Margin::same(10)) // Space inside of the border
-                    .corner_radius(5.0) // Optional: Rounded corners
-                    .fill(egui::Color32::from_black_alpha(0))
+                    .outer_margin(egui::Margin::same(12)) // Margin outside the border
+                    .inner_margin(egui::Margin::same(10)) // Margin inside of the border
+                    .corner_radius(5.0) // Rounded Corners
+                    .fill(egui::Color32::from_black_alpha(0)) // Clear Background
                     .show(ui, |ui| {
                         ui.set_min_width(200.0);
 
-                        let (scroll, pointer_down, modifiers) = ui.input(|i| {
+                        let (scroll, pointer_down, pointer_clicked, modifiers) = ui.input(|i| {
                             let scroll = i.events.iter().find_map(|e| match e {
                                 Event::MouseWheel {
                                     unit: _,
@@ -113,7 +114,7 @@ impl App for TriangleGator {
                                 } => Some(*delta),
                                 _ => None,
                             });
-                            (scroll, i.pointer.primary_down(), i.modifiers)
+                            (scroll, i.pointer.primary_down(), i.pointer.primary_clicked(), i.modifiers)
                         });
 
                         if !self.selected_network.trim().is_empty() {
@@ -126,13 +127,15 @@ impl App for TriangleGator {
                             .width(272.0)
                             .height(200.0)
                             .min_size(egui::vec2(0.0, 180.0))
-                            .label_formatter(|name, value| {
-                                if name.is_empty() {
-                                    format!("{}: {:.*}%", name, 1, value.y)
-                                } else {
-                                    "".to_owned()
-                                }
-                            })
+
+                            // .label_formatter(|name, value| {
+                            //     if name.is_empty() {
+                            //         format!("{}: {:.*}%", name, 1, value.y)
+                            //     } else {
+                            //         "".to_owned()
+                            //     }
+                            // })
+
                             .show(ui, |plot_ui| {
                                 if let Some(mut scroll) = scroll {
                                     if modifiers.ctrl == self.ctrl_to_zoom {
@@ -173,22 +176,67 @@ impl App for TriangleGator {
                                     plot_ui.translate_bounds(pointer_translate);
                                 }
 
-                                // let sine_points = PlotPoints::from_explicit_callback(|x| x.sin(), .., 5000);
-                                // plot_ui.line(Line::new(sine_points));
-
                                 let mut points_vec = vec![];
 
-                                self.points.iter().clone().for_each(|point| {
+                                self.points.iter().clone().for_each(|point| { // COMBINE THIS WITH THE HOVER DETECTION FOR BETTER EFFICIENCY
                                     points_vec.push([f64::from(point.x), f64::from(point.y)]);
                                 });
 
-                                // let polygon = Polygon::new(PlotPoints::from(triangle_points.clone())).allow_hover(true).fill_color(egui::Color32::from_rgb(0, 255, 0));
-
-                                // plot_ui.polygon(polygon);
-
-                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).allow_hover(true);
+                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).fill_color(Color32::from_rgba_unmultiplied(255, 255, 255, 40)).stroke(Stroke::new(1.0, Color32::WHITE)).allow_hover(true);
 
                                 plot_ui.polygon(triangle_bounds);
+
+                                // HOVER DETECTION CODE
+                                if let Some(pointer_pos) = plot_ui.pointer_coordinate() {
+                                    let hover_threshold = 3.0;
+                    
+                                    self.points.iter().clone().for_each(|point| {
+                                        let distance = ((pointer_pos.x - f64::from(point.x)).powi(2) + (pointer_pos.y - f64::from(point.y)).powi(2)).sqrt();
+
+                                        if distance < hover_threshold {
+                                            let distance_to_center = 2;
+                                            let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
+
+                                            plot_ui.ctx().debug_painter().text(
+                                                screen_pos,
+                                                egui::Align2::LEFT_TOP,
+                                                format!("Distance: {:.2}", distance_to_center),
+                                                FontId::new(14.0, Proportional),
+                                                egui::Color32::GRAY,
+                                            );
+
+                                            // CLICKING WORKS HORRAY
+                                            if pointer_clicked {
+                                                if self.selected_point.is_some() && self.selected_point == Some(point.clone()) {
+                                                    self.selected_point = None;
+                                                } else {
+                                                    self.selected_point = Some(Point::from(point));
+                                                }
+                                                println!("Clicked Point: ({:.2}, {:.2})", point.x, point.y);
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if self.selected_point.is_some() {
+                                    let selected_point = self.selected_point.as_ref().unwrap();
+
+                                    let point_x = f64::from(selected_point.x);
+                                    let point_y = f64::from(selected_point.y);
+
+                                    let points_vec = vec![
+                                        [point_x - 3.0, point_y],
+                                        [point_x, point_y + 3.0],
+                                        [point_x + 3.0, point_y],
+                                        [point_x, point_y- 3.0],
+                                    ];
+
+                                    // let selected_point_circle_shape = CircleShape { center: Pos2::new(selected_point.x, selected_point.y), radius: 3.0, fill: Color32::from_rgba_unmultiplied(255, 255, 255, 50), stroke: Stroke::new(2.0, Color32::RED) };
+
+                                    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
+
+                                    plot_ui.polygon(point_bounds);
+                                }
 
                                 // if plot_ui.response().hovered() && pointer_down {
                                 //     let mut pointer_translate = -plot_ui.pointer_coordinate_drag_delta();
@@ -263,12 +311,6 @@ impl App for TriangleGator {
             if !is_network_selected(self) {
                 ui.label(self.selected_network.to_string());
             }
-
-            ui.horizontal(|ui| {
-                if ui.button("Point One").clicked() { }   
-                if ui.button("Point Two").clicked() { }   
-                if ui.button("Point Three").clicked() { }   
-            });
                 
             ui.horizontal(|ui| {
                 if ui.button("Place Point").clicked() {
