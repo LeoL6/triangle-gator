@@ -5,13 +5,12 @@
 mod trilateration_calc;
 
 use eframe::{*};
-use eframe::egui::{self, Event, Vec2, FontId, FontFamily::Proportional};
+use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
-use egui::epaint::CircleShape;
 use egui_plot::{Legend, PlotPoints, Polygon};
 
 use emath::Pos2;
-use egui::{Color32, IconData, Painter, Stroke, Theme, ViewportCommand};
+use egui::{Button, Color32, IconData, Stroke, Theme, ViewportCommand};
 use trilateration_calc::Point;
 use std::process::Command;
 use std::vec;
@@ -21,7 +20,7 @@ struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
     selected_network: String, // Store the currently selected network
     points: [Point; 3],  // Triangle points
-    selected_point: Option<Point>, // Index of selected side
+    selected_point: Option<usize>, // Index of selected point
 
 
     lock_x: bool,
@@ -182,44 +181,48 @@ impl App for TriangleGator {
                                     points_vec.push([f64::from(point.x), f64::from(point.y)]);
                                 });
 
-                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).fill_color(Color32::from_rgba_unmultiplied(255, 255, 255, 40)).stroke(Stroke::new(1.0, Color32::WHITE)).allow_hover(true);
+                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).fill_color(Color32::from_rgba_unmultiplied(255, 255, 255, 20)).stroke(Stroke::new(1.0, Color32::WHITE)).allow_hover(true);
 
                                 plot_ui.polygon(triangle_bounds);
 
                                 // HOVER DETECTION CODE
                                 if let Some(pointer_pos) = plot_ui.pointer_coordinate() {
                                     let hover_threshold = 3.0;
-                    
-                                    self.points.iter().clone().for_each(|point| {
+
+                                    for (index, point) in self.points.iter().enumerate() {
                                         let distance = ((pointer_pos.x - f64::from(point.x)).powi(2) + (pointer_pos.y - f64::from(point.y)).powi(2)).sqrt();
 
                                         if distance < hover_threshold {
-                                            let distance_to_center = 2;
+                                            let rssi = point.d;
                                             let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
 
                                             plot_ui.ctx().debug_painter().text(
                                                 screen_pos,
                                                 egui::Align2::LEFT_TOP,
-                                                format!("Distance: {:.2}", distance_to_center),
-                                                FontId::new(14.0, Proportional),
-                                                egui::Color32::GRAY,
+                                                format!("RSSI: {:.2}", rssi),
+                                                FontId::new(14.0, FontFamily::Proportional),
+                                                egui::Color32::RED,
                                             );
 
                                             // CLICKING WORKS HORRAY
                                             if pointer_clicked {
-                                                if self.selected_point.is_some() && self.selected_point == Some(point.clone()) {
+                                                if self.selected_point.is_some() && self.selected_point == Some(index) {
                                                     self.selected_point = None;
                                                 } else {
-                                                    self.selected_point = Some(Point::from(point));
+                                                    self.selected_point = Some(index);
                                                 }
-                                                println!("Clicked Point: ({:.2}, {:.2})", point.x, point.y);
+                                                // if self.selected_point.is_some() && self.selected_point == Some(point.clone()) {
+                                                //     self.selected_point = None;
+                                                // } else {
+                                                //     self.selected_point = Some(Point::from(point));
+                                                // }
                                             }
                                         }
-                                    });
+                                    }
                                 }
 
                                 if self.selected_point.is_some() {
-                                    let selected_point = self.selected_point.as_ref().unwrap();
+                                    let selected_point = self.points[self.selected_point.unwrap()].clone();
 
                                     let point_x = f64::from(selected_point.x);
                                     let point_y = f64::from(selected_point.y);
@@ -298,7 +301,6 @@ impl App for TriangleGator {
                                 ui.vertical_centered(|ui| {
                                     for network in &self.available_networks {
                                         if ui.button(network).clicked() {
-                                            println!("Selecting {}", network);
                                             self.selected_network = network.to_string();
                                         }
                                     }
@@ -313,11 +315,15 @@ impl App for TriangleGator {
             }
                 
             ui.horizontal(|ui| {
-                if ui.button("Place Point").clicked() {
+                if ui.add_enabled(self.selected_point.is_some(),Button::new("Place Point")).clicked() {
                     let trilat_calc = trilateration_calc::TrilaterationCalculator::default();
 
                     // trilat_calc.test_levmar();
                     trilat_calc.test_calc();
+
+                    self.points[self.selected_point.unwrap()].d = 5.0; // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
+
+                    self.selected_point = None;
                 }   
                 if ui.button("Reset Calculation").clicked() {
                     self.selected_network.clear();
