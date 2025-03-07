@@ -11,7 +11,7 @@ use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
 use emath::Pos2;
 use egui::{Button, Color32, IconData, Stroke, Theme, ViewportCommand};
-use trilateration_calc::Point;
+use trilateration_calc::{Point, Location};
 use std::process::Command;
 use std::vec;
 
@@ -21,7 +21,9 @@ struct TriangleGator {
     selected_network: String, // Store the currently selected network REPLACE WITH NETWORK STRUCT
     points: [Point; 3],  // Triangle points
     selected_point: Option<usize>, // Index of selected point
+    calculated_location: Option<Location>, // Calculated Location of Network.
 
+    points_scanned: u8,
 
     lock_x: bool,
     lock_y: bool,
@@ -42,6 +44,9 @@ impl Default for TriangleGator {
                 Point::new(50.0, 96.0, None),  // Bottom right
             ],
             selected_point: None,
+            calculated_location: None,
+
+            points_scanned: 0,
 
             lock_x: false,
             lock_y: false,
@@ -93,8 +98,6 @@ impl App for TriangleGator {
 
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
-
-            let mut points_scanned: u16 = 0; // I DONT KNOW, OKAY?
 
             ui.horizontal_centered(|ui| {
                 egui::Frame::NONE
@@ -202,13 +205,11 @@ impl App for TriangleGator {
                                             if rssi.is_some() {
                                                 plot_ui.ctx().debug_painter().text(
                                                     screen_pos,
-                                                    egui::Align2::CENTER_BOTTOM,
+                                                    egui::Align2::LEFT_TOP,
                                                     format!("RSSI: {:.2}", rssi.unwrap()),   // MAYBE MAKE THE DISTANCE VAR A OPTION SO U CAN SET IT TO NONE, CHECK, AND HAVE NOTING DISPLAY UNDER THE RSSI
                                                     FontId::new(12.0, FontFamily::Proportional), // SPLIT THIS INTO MULTIPLE FILES
                                                     egui::Color32::RED,
                                                 );
-
-                                                points_scanned += 1;
                                             }
 
                                             // CLICKING WORKS HORRAY
@@ -239,6 +240,26 @@ impl App for TriangleGator {
                                         [point_x, point_y + 3.0],
                                         [point_x + 3.0, point_y],
                                         [point_x, point_y- 3.0],
+                                    ];
+
+                                    // let selected_point_circle_shape = CircleShape { center: Pos2::new(selected_point.x, selected_point.y), radius: 3.0, fill: Color32::from_rgba_unmultiplied(255, 255, 255, 50), stroke: Stroke::new(2.0, Color32::RED) };
+
+                                    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
+
+                                    plot_ui.polygon(point_bounds);
+                                }
+
+                                if self.calculated_location.is_some() {
+                                    let calculated_loc = self.calculated_location.as_ref().unwrap();
+                                    
+                                    let x = f64::from(calculated_loc.x);
+                                    let y = f64::from(calculated_loc.y);
+
+                                    let points_vec = vec![
+                                        [x - 3.0, y],
+                                        [x, y + 3.0],
+                                        [x + 3.0, y],
+                                        [x, y- 3.0],
                                     ];
 
                                     // let selected_point_circle_shape = CircleShape { center: Pos2::new(selected_point.x, selected_point.y), radius: 3.0, fill: Color32::from_rgba_unmultiplied(255, 255, 255, 50), stroke: Stroke::new(2.0, Color32::RED) };
@@ -324,22 +345,35 @@ impl App for TriangleGator {
             if self.selected_network != "" {
                 ui.horizontal(|ui| {
                     if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
-                        let trilat_calc = trilateration_calc::TrilaterationCalculator::default();
-
-                        // trilat_calc.test_levmar();
-                        trilat_calc.test_calc();
-
                         self.points[self.selected_point.unwrap()].d = Some(ping_selected_network(self)); // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
 
+                        self.points_scanned += 1;
+                        
                         self.selected_point = None;
                     }   
 
-                    if ui.add_enabled(points_scanned >= 2, Button::new("Calculate")).clicked() {
-                        println!("CALCULATINGGGG!!!");
+                    if ui.add_enabled(self.points_scanned == 3, Button::new("Calculate")).clicked() {
+                        let trilat_calc = trilateration_calc::TrilaterationCalculator::default();
+
+                        let location = trilat_calc.get_location(&self.points[0], &self.points[1], &self.points[2]);
+
+                        println!("Estimated WAP Location: ({:.2}, {:.2})", location.x, location.y);
+
+                        self.calculated_location = Some(location);
+
+                        self.points_scanned = 0;
                     }
 
                     if ui.button("Reset Calculation").clicked() {
                         self.selected_network.clear();
+                        self.calculated_location = None;
+                        self.points_scanned = 0;
+                        self.points[0].d = None;
+
+                        for i in 0..3 {
+                            self.points[i].d = None;
+                        }
+
                         list_networks(self);
                     }
                 });
@@ -349,7 +383,7 @@ impl App for TriangleGator {
 }
 
 fn ping_selected_network(selph: &mut TriangleGator) -> f32 {
-    return 5.0;
+    return 80.0;
 }
 
 fn list_networks(selph: &mut TriangleGator) {
@@ -383,18 +417,18 @@ fn is_network_selected(selph: &mut TriangleGator) -> bool {
     return selph.selected_network.trim().is_empty();
 }
 
-// Function to calculate the closest point on a line segment from a given point
-fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
-    let line_vec = end - start;
-    let point_vec = point - start;
+// // Function to calculate the closest point on a line segment from a given point
+// fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
+//     let line_vec = end - start;
+//     let point_vec = point - start;
 
-    // Project the point onto the line (clamped between the start and end points)
-    let t = (point_vec.x * line_vec.x + point_vec.y * line_vec.y) / (line_vec.x * line_vec.x + line_vec.y * line_vec.y);
-    let t = t.clamp(0.0, 1.0);
+//     // Project the point onto the line (clamped between the start and end points)
+//     let t = (point_vec.x * line_vec.x + point_vec.y * line_vec.y) / (line_vec.x * line_vec.x + line_vec.y * line_vec.y);
+//     let t = t.clamp(0.0, 1.0);
 
-    // Calculate the closest point on the line
-    start + t * line_vec
-}
+//     // Calculate the closest point on the line
+//     start + t * line_vec
+// }
 
 
 
