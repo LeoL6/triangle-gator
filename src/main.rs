@@ -18,7 +18,7 @@ use std::vec;
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 struct TriangleGator {
     available_networks: Vec<String>, // Store networks in a vector
-    selected_network: String, // Store the currently selected network
+    selected_network: String, // Store the currently selected network REPLACE WITH NETWORK STRUCT
     points: [Point; 3],  // Triangle points
     selected_point: Option<usize>, // Index of selected point
 
@@ -37,9 +37,9 @@ impl Default for TriangleGator {
             available_networks: Vec::new(),
             selected_network: String::new(),
             points: [
-                Point::new(0.0, 10.0, 0.0),  // Top
-                Point::new(100.0, 10.0, 0.0),  // Bottom left
-                Point::new(50.0, 96.0, 0.0),  // Bottom right
+                Point::new(0.0, 10.0, None),  // Top
+                Point::new(100.0, 10.0, None),  // Bottom left
+                Point::new(50.0, 96.0, None),  // Bottom right
             ],
             selected_point: None,
 
@@ -93,6 +93,8 @@ impl App for TriangleGator {
 
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
+
+            let mut points_scanned: u16 = 0; // I DONT KNOW, OKAY?
 
             ui.horizontal_centered(|ui| {
                 egui::Frame::NONE
@@ -194,15 +196,20 @@ impl App for TriangleGator {
 
                                         if distance < hover_threshold {
                                             let rssi = point.d;
-                                            let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
+                                            // let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
+                                            let screen_pos = plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y));
 
-                                            plot_ui.ctx().debug_painter().text(
-                                                plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y)),
-                                                egui::Align2::LEFT_TOP,
-                                                format!("RSSI: {:.2}", rssi),   // MAYBE MAKE THE DISTANCE VAR A OPTION SO U CAN SET IT TO NONE, CHECK, AND HAVE NOTING DISPLAY UNDER THE RSSI
-                                                FontId::new(14.0, FontFamily::Proportional),
-                                                egui::Color32::RED,
-                                            );
+                                            if rssi.is_some() {
+                                                plot_ui.ctx().debug_painter().text(
+                                                    screen_pos,
+                                                    egui::Align2::CENTER_BOTTOM,
+                                                    format!("RSSI: {:.2}", rssi.unwrap()),   // MAYBE MAKE THE DISTANCE VAR A OPTION SO U CAN SET IT TO NONE, CHECK, AND HAVE NOTING DISPLAY UNDER THE RSSI
+                                                    FontId::new(12.0, FontFamily::Proportional), // SPLIT THIS INTO MULTIPLE FILES
+                                                    egui::Color32::RED,
+                                                );
+
+                                                points_scanned += 1;
+                                            }
 
                                             // CLICKING WORKS HORRAY
                                             if pointer_clicked {
@@ -313,25 +320,36 @@ impl App for TriangleGator {
             if !is_network_selected(self) {
                 ui.label(self.selected_network.to_string());
             }
-                
-            ui.horizontal(|ui| {
-                if ui.add_enabled(self.selected_point.is_some(),Button::new("Place Point")).clicked() {
-                    let trilat_calc = trilateration_calc::TrilaterationCalculator::default();
+            
+            if self.selected_network != "" {
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
+                        let trilat_calc = trilateration_calc::TrilaterationCalculator::default();
 
-                    // trilat_calc.test_levmar();
-                    trilat_calc.test_calc();
+                        // trilat_calc.test_levmar();
+                        trilat_calc.test_calc();
 
-                    self.points[self.selected_point.unwrap()].d = 5.0; // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
+                        self.points[self.selected_point.unwrap()].d = Some(ping_selected_network(self)); // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
 
-                    self.selected_point = None;
-                }   
-                if ui.button("Reset Calculation").clicked() {
-                    self.selected_network.clear();
-                    list_networks(self);
-                }
-            });
+                        self.selected_point = None;
+                    }   
+
+                    if ui.add_enabled(points_scanned >= 2, Button::new("Calculate")).clicked() {
+                        println!("CALCULATINGGGG!!!");
+                    }
+
+                    if ui.button("Reset Calculation").clicked() {
+                        self.selected_network.clear();
+                        list_networks(self);
+                    }
+                });
+            }
         });
     }
+}
+
+fn ping_selected_network(selph: &mut TriangleGator) -> f32 {
+    return 5.0;
 }
 
 fn list_networks(selph: &mut TriangleGator) {
