@@ -7,7 +7,7 @@ mod trilateration_calc;
 use eframe::{*};
 use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
-use egui_plot::{Legend, PlotPoints, Polygon};
+use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
 use emath::Pos2;
 use egui::{Button, Color32, IconData, Stroke, Theme, ViewportCommand};
@@ -197,9 +197,9 @@ impl App for TriangleGator {
                                             let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
 
                                             plot_ui.ctx().debug_painter().text(
-                                                screen_pos,
+                                                plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y)),
                                                 egui::Align2::LEFT_TOP,
-                                                format!("RSSI: {:.2}", rssi),
+                                                format!("RSSI: {:.2}", rssi),   // MAYBE MAKE THE DISTANCE VAR A OPTION SO U CAN SET IT TO NONE, CHECK, AND HAVE NOTING DISPLAY UNDER THE RSSI
                                                 FontId::new(14.0, FontFamily::Proportional),
                                                 egui::Color32::RED,
                                             );
