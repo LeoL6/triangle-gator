@@ -11,7 +11,7 @@ use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
 use emath::Pos2;
 use egui::{Button, Color32, IconData, Stroke, Theme, ViewportCommand};
-use trilateration_calc::{Point, Location};
+use trilateration_calc::{Location, NetInfo, Point};
 use std::process::Command;
 use std::vec;
 
@@ -198,15 +198,17 @@ impl App for TriangleGator {
                                         let distance = ((pointer_pos.x - f64::from(point.x)).powi(2) + (pointer_pos.y - f64::from(point.y)).powi(2)).sqrt();
 
                                         if distance < hover_threshold {
-                                            let rssi = point.d;
+                                            let netinfo = point.netinfo.as_ref();
                                             // let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
                                             let screen_pos = plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y));
 
-                                            if rssi.is_some() {
+                                            if netinfo.is_some() {
+                                                let measured_power: Option<f32> = netinfo.unwrap().measuered_power;
+
                                                 plot_ui.ctx().debug_painter().text(
                                                     screen_pos,
                                                     egui::Align2::LEFT_TOP,
-                                                    format!("RSSI: {:.2}", rssi.unwrap()),   // MAYBE MAKE THE DISTANCE VAR A OPTION SO U CAN SET IT TO NONE, CHECK, AND HAVE NOTING DISPLAY UNDER THE RSSI
+                                                    format!("RSSI: {:.2}", measured_power.unwrap()),   // MAYBE MAKE THE DISTANCE VAR A OPTION SO U CAN SET IT TO NONE, CHECK, AND HAVE NOTING DISPLAY UNDER THE RSSI
                                                     FontId::new(12.0, FontFamily::Proportional), // SPLIT THIS INTO MULTIPLE FILES
                                                     egui::Color32::RED,
                                                 );
@@ -345,7 +347,11 @@ impl App for TriangleGator {
             if self.selected_network != "" {
                 ui.horizontal(|ui| {
                     if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
-                        self.points[self.selected_point.unwrap()].d = Some(ping_selected_network(self)); // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
+                        // self.points[self.selected_point.unwrap()].d = Some(ping_selected_network(self)); // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
+
+                        let net_info = get_selected_netinfo();
+
+                        self.points[self.selected_point.unwrap()].netinfo = Some(net_info);
 
                         self.points_scanned += 1;
                         
@@ -368,10 +374,9 @@ impl App for TriangleGator {
                         self.selected_network.clear();
                         self.calculated_location = None;
                         self.points_scanned = 0;
-                        self.points[0].d = None;
 
                         for i in 0..3 {
-                            self.points[i].d = None;
+                            self.points[i].netinfo = None;
                         }
 
                         list_networks(self);
@@ -382,8 +387,11 @@ impl App for TriangleGator {
     }
 }
 
-fn ping_selected_network(selph: &mut TriangleGator) -> f32 {
-    return 80.0;
+fn get_selected_netinfo() -> NetInfo{
+    return NetInfo {
+        tx_power: Some(15.0),
+        measuered_power: Some(-38.0),
+    }
 }
 
 fn list_networks(selph: &mut TriangleGator) {
