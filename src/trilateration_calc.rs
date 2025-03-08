@@ -10,12 +10,12 @@ pub struct NetInfo {
 pub struct Point {
     pub x: f32,
     pub y: f32,
-    pub netinfo: Option<NetInfo>,
+    pub net_info: Option<NetInfo>,
 }
 
 impl Point {
-    pub fn new(x: f32, y: f32, netinfo: Option<NetInfo>) -> Point {
-        return Point { x: x, y: y, netinfo: netinfo};
+    pub fn new(x: f32, y: f32, net_info: Option<NetInfo>) -> Point {
+        return Point { x, y, net_info };
     }
 }
 
@@ -77,10 +77,10 @@ impl TrilaterationCalculator {
         return Location {x: results.x, y: results.y};
     }
 
-    fn get_distance(&self, netinfo: Option<&NetInfo>, path_loss_exponent: f32) -> f32 {
+    fn get_distance(&self, net_info: Option<&NetInfo>, path_loss_exponent: f32) -> f32 {
         let base: f32 = 10.0;
     
-        let network_info= netinfo.unwrap();
+        let network_info= net_info.unwrap();
     
         let tx_power = network_info.tx_power.unwrap();
         let measured_power = network_info.measuered_power.unwrap();
@@ -93,13 +93,13 @@ impl TrilaterationCalculator {
     fn calculate_location(&self,p1: &Point, p2: &Point, p3: &Point, path_loss_exponent: f32) -> Option<Location> {
         let x1 = p1.x;
         let y1 = p1.y;
-        let r1 = self.get_distance(p1.netinfo.as_ref(), path_loss_exponent);
+        let r1 = self.get_distance(p1.net_info.as_ref(), path_loss_exponent);
         let x2 = p2.x;
         let y2 = p2.y;
-        let r2 = self.get_distance(p2.netinfo.as_ref(), path_loss_exponent);
+        let r2 = self.get_distance(p2.net_info.as_ref(), path_loss_exponent);
         let x3 = p3.x;
         let y3 = p3.y;
-        let r3 = self.get_distance(p3.netinfo.as_ref(), path_loss_exponent);
+        let r3 = self.get_distance(p3.net_info.as_ref(), path_loss_exponent);
     
         println!("d:{} d:{} d:{}", r1, r2, r3);
     

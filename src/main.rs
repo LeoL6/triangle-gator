@@ -38,9 +38,9 @@ impl Default for TriangleGator {
             available_networks: Vec::new(),
             selected_network: String::new(),
             points: [
-                Point::new(0.0, 10.0, None),  // Top
-                Point::new(100.0, 10.0, None),  // Bottom left
-                Point::new(50.0, 96.0, None),  // Bottom right
+                Point::new(0.0, 10.0, None),  // Bottom left
+                Point::new(100.0, 10.0, None),  // Bottom right
+                Point::new(50.0, 96.0, None),  // Top
             ],
             selected_point: None,
             calculated_location: None,
@@ -185,7 +185,7 @@ impl App for TriangleGator {
                                     points_vec.push([f64::from(point.x), f64::from(point.y)]);
                                 });
 
-                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).fill_color(Color32::from_rgba_unmultiplied(255, 255, 255, 20)).stroke(Stroke::new(1.0, Color32::WHITE)).allow_hover(true);
+                                let triangle_bounds = Polygon::new(PlotPoints::from(points_vec.clone())).allow_hover(false).fill_color(Color32::from_rgba_unmultiplied(255, 255, 255, 20)).stroke(Stroke::new(1.0, Color32::WHITE)).allow_hover(true);
 
                                 plot_ui.polygon(triangle_bounds);
 
@@ -197,12 +197,12 @@ impl App for TriangleGator {
                                         let distance = ((pointer_pos.x - f64::from(point.x)).powi(2) + (pointer_pos.y - f64::from(point.y)).powi(2)).sqrt();
 
                                         if distance < hover_threshold {
-                                            let netinfo = point.netinfo.as_ref();
+                                            let net_info = point.net_info.as_ref();
                                             // let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
                                             let screen_pos = plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y));
 
-                                            if netinfo.is_some() {
-                                                let measured_power: Option<f32> = netinfo.unwrap().measuered_power;
+                                            if net_info.is_some() {
+                                                let measured_power: Option<f32> = net_info.unwrap().measuered_power;
 
                                                 plot_ui.ctx().debug_painter().text(
                                                     screen_pos,
@@ -220,11 +220,6 @@ impl App for TriangleGator {
                                                 } else {
                                                     self.selected_point = Some(index);
                                                 }
-                                                // if self.selected_point.is_some() && self.selected_point == Some(point.clone()) {
-                                                //     self.selected_point = None;
-                                                // } else {
-                                                //     self.selected_point = Some(Point::from(point));
-                                                // }
                                             }
                                         }
                                     }
@@ -243,9 +238,7 @@ impl App for TriangleGator {
                                         [point_x, point_y- 3.0],
                                     ];
 
-                                    // let selected_point_circle_shape = CircleShape { center: Pos2::new(selected_point.x, selected_point.y), radius: 3.0, fill: Color32::from_rgba_unmultiplied(255, 255, 255, 50), stroke: Stroke::new(2.0, Color32::RED) };
-
-                                    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
+                                    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).allow_hover(false).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
 
                                     plot_ui.polygon(point_bounds);
                                 }
@@ -350,7 +343,7 @@ impl App for TriangleGator {
 
                         let net_info = get_selected_netinfo();
 
-                        self.points[self.selected_point.unwrap()].netinfo = Some(net_info);
+                        self.points[self.selected_point.unwrap()].net_info = Some(net_info);
 
                         self.points_scanned += 1;
                         
@@ -375,7 +368,7 @@ impl App for TriangleGator {
                         self.points_scanned = 0;
 
                         for i in 0..3 {
-                            self.points[i].netinfo = None;
+                            self.points[i].net_info = None;
                         }
 
                         list_networks(self);
@@ -423,26 +416,6 @@ fn list_networks(selph: &mut TriangleGator) {
 fn is_network_selected(selph: &mut TriangleGator) -> bool {
     return selph.selected_network.trim().is_empty();
 }
-
-// // Function to calculate the closest point on a line segment from a given point
-// fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
-//     let line_vec = end - start;
-//     let point_vec = point - start;
-
-//     // Project the point onto the line (clamped between the start and end points)
-//     let t = (point_vec.x * line_vec.x + point_vec.y * line_vec.y) / (line_vec.x * line_vec.x + line_vec.y * line_vec.y);
-//     let t = t.clamp(0.0, 1.0);
-
-//     // Calculate the closest point on the line
-//     start + t * line_vec
-// }
-
-
-
-
-
-
-
 
 fn custom_window_frame(ctx: &egui::Context, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     use egui::{CentralPanel, UiBuilder};
