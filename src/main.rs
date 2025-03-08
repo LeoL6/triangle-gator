@@ -9,7 +9,6 @@ use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
 use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
-use emath::Pos2;
 use egui::{Button, Color32, IconData, Stroke, Theme, ViewportCommand};
 use trilateration_calc::{Location, NetInfo, Point};
 use std::process::Command;
