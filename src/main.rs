@@ -39,6 +39,9 @@ impl Network {
 struct TriangleGator {
     available_networks: Vec<Network>, // Store networks in a vector
     selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
+    network_password: String, // Network password (if there is one)
+    connected: bool, // Wether or not the user is currently connected to the desired network
+    
     points: [Point; 3],  // Triangle points
     selected_point: Option<usize>, // Index of selected point
     calculated_location: Option<Location>, // Calculated Location of Network.
@@ -58,6 +61,9 @@ impl Default for TriangleGator {
         Self {
             available_networks: Vec::new(),
             selected_network: None,
+            connected: false,
+            network_password: String::from(""),
+
             points: [
                 Point::new(0.0, 0.0, None),  // Bottom left
                 Point::new(100.0, 0.0, None),  // Bottom right
@@ -141,7 +147,7 @@ impl App for TriangleGator {
                             (scroll, i.pointer.primary_down(), i.pointer.primary_clicked(), i.modifiers)
                         });
 
-                        if self.selected_network.is_some() {
+                        if self.selected_network.is_some() && self.connected {
                             egui_plot::Plot::new("plot")
                             .allow_zoom(false)
                             .allow_drag(false)
@@ -336,6 +342,7 @@ impl App for TriangleGator {
                                     for network in &self.available_networks {
                                         if ui.button(network.ssid.clone()).clicked() {
                                             self.selected_network = Some(Network::from(network));
+                                            self.network_password = String::from("");
                                         }
                                     }
                                 });
@@ -344,15 +351,26 @@ impl App for TriangleGator {
                     });
             });
             
-            if self.selected_network.is_some() {
-                ui.label(self.selected_network.as_ref().unwrap().ssid.clone());
+            if self.selected_network.is_some() && !self.connected {
+                let selected_network = self.selected_network.as_ref().unwrap();
+
+                ui.label(selected_network.ssid.clone());
+
+                if selected_network.security.is_some() {
+                    ui.horizontal(|ui| {
+                        ui.label("Password");
+                        ui.text_edit_singleline(&mut self.network_password);  
+                    });
+                }
+
+                if ui.button("Connect").clicked() {
+                    self.connected = connect_to_network(selected_network, self.network_password.clone());
+                }
             }
             
-            if self.selected_network.is_some(){
+            if self.selected_network.is_some() & self.connected {
                 ui.horizontal(|ui| {
                     if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
-                        // self.points[self.selected_point.unwrap()].d = Some(ping_selected_network(self)); // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
-
                         let net_info = get_selected_netinfo();
 
                         self.points[self.selected_point.unwrap()].net_info = Some(net_info);
@@ -375,28 +393,43 @@ impl App for TriangleGator {
                     }
 
                     if ui.button("Reset Calculation").clicked() {
-                        self.selected_network = None;
-                        self.calculated_location = None;
-                        self.points_scanned = 0;
-
-                        for i in 0..3 {
-                            self.points[i].net_info = None;
-                        }
-
+                        reset_calc(self);
                         list_networks(self);
                     }
                 });
             }
+
+            // ui.link(text) FULLY OPEN SOURCE PROJECT BY LEONARDO LEES
+            // GITHUB (LINK)
         });
     }
 }
 
 // FUNCTIONS TO CHECK SEC OF NETWORK, CONNECT / LOGIN, AND THEN PING THE NETWORK TO GET THE SELECTED NETINFO
 
+// MAYBE ALSO A LOADING KINDA SWIRL OR BAR THING, THAT DISPLAYS WHILE TESTING A POINT, ONCE EVERY quarter SECOND, LIKE 5 TIMES
+// Im thinking, little bar graph, also disable reset_calc when bar graph is testing
+
+fn connect_to_network(network: &Network, password: String) -> bool {
+    return true;
+}
+
 fn get_selected_netinfo() -> NetInfo{
     return NetInfo {
         tx_power: Some(15.0),
         measuered_power: Some(-38.0),
+    }
+}
+
+fn reset_calc(selph: &mut TriangleGator) {
+    selph.connected = false;
+    selph.selected_network = None;
+    selph.network_password = String::from("");
+    selph.calculated_location = None;
+    selph.points_scanned = 0;
+
+    for i in 0..3 {
+        selph.points[i].net_info = None;
     }
 }
 
