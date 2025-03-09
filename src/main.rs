@@ -2,6 +2,10 @@
 
 // BROWN SUGAR OAT AMERICANO
 
+// MAKE SELECTED NETWORK AND AVAILABLE NETWORKS INTO STRUCT THAT HAS NAME, SIGNAL STRENGTH, TX, SECURITY TYPE
+
+// THEN IF THERE IS SECURITY TYPE, ENTER PASSWORD OR SUM, AND THEN LOG IN WITH "nmcli dev wifi connect "SSID"" or nmcli dev wifi connect "SSID" password "YourPassword"
+
 mod trilateration_calc;
 
 use eframe::{*};
@@ -15,9 +19,26 @@ use std::process::Command;
 use std::vec;
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
+
+struct Network {
+    ssid: String,
+    measured_power: u32,
+    security: Option<String>
+}
+
+impl Network {
+    fn new(ssid: String, measured_power: u32, security: Option<String>) -> Network {
+        return Network { ssid, measured_power, security };
+    }
+
+    fn from(network: &Network) -> Network {
+        return Network { ssid: network.ssid.clone(), measured_power: network.measured_power, security: network.security.clone() };
+    }
+}
+
 struct TriangleGator {
-    available_networks: Vec<String>, // Store networks in a vector
-    selected_network: String, // Store the currently selected network REPLACE WITH NETWORK STRUCT
+    available_networks: Vec<Network>, // Store networks in a vector
+    selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
     points: [Point; 3],  // Triangle points
     selected_point: Option<usize>, // Index of selected point
     calculated_location: Option<Location>, // Calculated Location of Network.
@@ -36,11 +57,11 @@ impl Default for TriangleGator {
     fn default() -> Self {
         Self {
             available_networks: Vec::new(),
-            selected_network: String::new(),
+            selected_network: None,
             points: [
-                Point::new(0.0, 10.0, None),  // Bottom left
-                Point::new(100.0, 10.0, None),  // Bottom right
-                Point::new(50.0, 96.0, None),  // Top
+                Point::new(0.0, 0.0, None),  // Bottom left
+                Point::new(100.0, 0.0, None),  // Bottom right
+                Point::new(50.0, 86.0, None),  // Top
             ],
             selected_point: None,
             calculated_location: None,
@@ -120,7 +141,7 @@ impl App for TriangleGator {
                             (scroll, i.pointer.primary_down(), i.pointer.primary_clicked(), i.modifiers)
                         });
 
-                        if !self.selected_network.trim().is_empty() {
+                        if self.selected_network.is_some() {
                             egui_plot::Plot::new("plot")
                             .allow_zoom(false)
                             .allow_drag(false)
@@ -130,15 +151,6 @@ impl App for TriangleGator {
                             .width(272.0)
                             .height(200.0)
                             .min_size(egui::vec2(0.0, 180.0))
-
-                            // .label_formatter(|name, value| {
-                            //     if name.is_empty() {
-                            //         format!("{}: {:.*}%", name, 1, value.y)
-                            //     } else {
-                            //         "".to_owned()
-                            //     }
-                            // })
-
                             .show(ui, |plot_ui| {
                                 if let Some(mut scroll) = scroll {
                                     if modifiers.ctrl == self.ctrl_to_zoom {
@@ -322,8 +334,8 @@ impl App for TriangleGator {
                             .show(ui, |ui| {
                                 ui.vertical_centered(|ui| {
                                     for network in &self.available_networks {
-                                        if ui.button(network).clicked() {
-                                            self.selected_network = network.to_string();
+                                        if ui.button(network.ssid.clone()).clicked() {
+                                            self.selected_network = Some(Network::from(network));
                                         }
                                     }
                                 });
@@ -332,11 +344,11 @@ impl App for TriangleGator {
                     });
             });
             
-            if !is_network_selected(self) {
-                ui.label(self.selected_network.to_string());
+            if self.selected_network.is_some() {
+                ui.label(self.selected_network.as_ref().unwrap().ssid.clone());
             }
             
-            if self.selected_network != "" {
+            if self.selected_network.is_some(){
                 ui.horizontal(|ui| {
                     if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
                         // self.points[self.selected_point.unwrap()].d = Some(ping_selected_network(self)); // CALC RSSI HERE AND SET IT INTO THE POINT STRUCT 
@@ -363,7 +375,7 @@ impl App for TriangleGator {
                     }
 
                     if ui.button("Reset Calculation").clicked() {
-                        self.selected_network.clear();
+                        self.selected_network = None;
                         self.calculated_location = None;
                         self.points_scanned = 0;
 
@@ -379,6 +391,8 @@ impl App for TriangleGator {
     }
 }
 
+// FUNCTIONS TO CHECK SEC OF NETWORK, CONNECT / LOGIN, AND THEN PING THE NETWORK TO GET THE SELECTED NETINFO
+
 fn get_selected_netinfo() -> NetInfo{
     return NetInfo {
         tx_power: Some(15.0),
@@ -387,9 +401,9 @@ fn get_selected_netinfo() -> NetInfo{
 }
 
 fn list_networks(selph: &mut TriangleGator) {
-    if is_network_selected(selph) {
+    if selph.selected_network.is_none() {
         let output = Command::new("nmcli")
-        .args(&["-t", "-f", "SSID, SIGNAL", "dev", "wifi"])
+        .args(&["-t", "-f", "SSID, SIGNAL, SECURITY", "dev", "wifi", "list"]) // maybe add , "list"
         .output()
         .expect("Failed to execute nmcli");
 
@@ -400,10 +414,21 @@ fn list_networks(selph: &mut TriangleGator) {
                 print!("Could not find any networks");
             } else {
                 for network in networks.lines() {
-                    let mut parts = network.splitn(2, ':'); // Split SSID and SIGNAL at the colon
-                    if let (Some(ssid), Some(signal)) = (parts.next(), parts.next()) {
-                        let network_info = format!("{} (Signal: {}%)", ssid, signal);
-                        selph.available_networks.push(network_info);
+                    let mut parts = network.splitn(3, ':'); // Split SSID and SIGNAL at the colon
+                    if let (Some(ssid), Some(signal), Some(security)) = (parts.next(), parts.next(), parts.next()) {
+                        if ssid != "" {
+
+                            let mut sec: Option<String> = None;
+
+                            if security != "" {
+                                sec = Some(security.parse().unwrap());
+                            }
+
+                            let network = Network::new(ssid.parse().unwrap(), signal.parse().unwrap(), sec);
+
+                            selph.available_networks.push(network);
+                            
+                        }
                     }
                 }
             }
@@ -411,10 +436,6 @@ fn list_networks(selph: &mut TriangleGator) {
             eprintln!("Error running nmcli: {}", String::from_utf8_lossy(&output.stderr));
         }
     }
-}
-
-fn is_network_selected(selph: &mut TriangleGator) -> bool {
-    return selph.selected_network.trim().is_empty();
 }
 
 fn custom_window_frame(ctx: &egui::Context, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
