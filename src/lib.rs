@@ -6,7 +6,10 @@
 
 // THEN IF THERE IS SECURITY TYPE, ENTER PASSWORD OR SUM, AND THEN LOG IN WITH "nmcli dev wifi connect "SSID"" or nmcli dev wifi connect "SSID" password "YourPassword"
 
-pub mod handlers;
+pub mod utils;
+
+use utils::network_manager::Network;
+use utils::trilateration_calc::{Location, NetInfo, Point, TrilaterationCalculator};
 
 use eframe::{*};
 use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
@@ -14,34 +17,17 @@ use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
 use egui::{Button, Color32, Stroke, Theme, ViewportCommand};
-use handlers::trilateration_calc::{Location, NetInfo, Point, TrilaterationCalculator};
-use std::process::Command;
-use std::vec;
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 
-struct Network {
-    ssid: String,
-    measured_power: u32,
-    security: Option<String>
-}
-
-impl Network {
-    fn new(ssid: String, measured_power: u32, security: Option<String>) -> Network {
-        return Network { ssid, measured_power, security };
-    }
-
-    fn from(network: &Network) -> Network {
-        return Network { ssid: network.ssid.clone(), measured_power: network.measured_power, security: network.security.clone() };
-    }
-}
-
 pub struct TriangleGator {
-    available_networks: Vec<Network>, // Store networks in a vector
-    selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
+    // available_networks: Vec<Network>, // Store networks in a vector
+    // selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
     network_password: String, // Network password (if there is one)
-    connected: bool, // Wether or not the user is currently connected to the desired network
+    // connected: bool, // Wether or not the user is currently connected to the desired network
     
+    network_manager: utils::network_manager::NetworkManager,
+
     points: [Point; 3],  // Triangle points
     selected_point: Option<usize>, // Index of selected point
     calculated_location: Option<Location>, // Calculated Location of Network.
@@ -59,10 +45,12 @@ pub struct TriangleGator {
 impl Default for TriangleGator {
     fn default() -> Self {
         Self {
-            available_networks: Vec::new(),
-            selected_network: None,
-            connected: false,
+            // available_networks: Vec::new(),
+            // selected_network: None,
+            // connected: false,
             network_password: String::from(""),
+
+            network_manager: utils::network_manager::NetworkManager::default(),
 
             points: [
                 Point::new(0.0, 0.0, None),  // Bottom left
@@ -90,7 +78,7 @@ impl App for TriangleGator {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
-        list_networks(self);
+        self.network_manager.scan_networks();
 
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
@@ -117,7 +105,7 @@ impl App for TriangleGator {
                             (scroll, i.pointer.primary_down(), i.pointer.primary_clicked(), i.modifiers)
                         });
 
-                        if self.selected_network.is_some() && self.connected {
+                        if self.network_manager.get_selected_network().is_some() && self.network_manager.get_connection_status() {
                             egui_plot::Plot::new("plot")
                             .allow_zoom(false)
                             .allow_drag(false)
@@ -259,24 +247,29 @@ impl App for TriangleGator {
                                 // }
                             });
                         } else {
+                            let mut selected_network = None;
                             egui::ScrollArea::vertical()
                             .max_height(200.0)
                             .show(ui, |ui| {
                                 ui.vertical_centered(|ui| {
-                                    for network in &self.available_networks {
+                                    for network in self.network_manager.get_available_networks() {
                                         if ui.button(network.ssid.clone()).clicked() {
-                                            self.selected_network = Some(Network::from(network));
-                                            self.network_password = String::from("");
+                                            selected_network = Some(Network::from(network));
                                         }
                                     }
                                 });
                             });
+
+                            if let Some(selected_network) = selected_network {
+                                self.network_manager.select_network(Some(&selected_network));
+                                self.network_password = String::from("");
+                            }
                         }
                     });
             });
             
-            if self.selected_network.is_some() && !self.connected {
-                let selected_network = self.selected_network.as_ref().unwrap();
+            if self.network_manager.get_selected_network().is_some() && !self.network_manager.get_connection_status() {
+                let selected_network = self.network_manager.get_selected_network().as_ref().unwrap();
 
                 ui.label(selected_network.ssid.clone());
 
@@ -288,11 +281,13 @@ impl App for TriangleGator {
                 }
 
                 if ui.button("Connect").clicked() {
-                    self.connected = connect_to_network(selected_network, self.network_password.clone());
+                    let connected = self.network_manager.connect_to_network(self.network_password.clone());
+                    self.network_manager.is_connected(connected);
+                    
                 }
             }
             
-            if self.selected_network.is_some() & self.connected {
+            if self.network_manager.get_selected_network().is_some() & self.network_manager.get_connection_status() {
                 ui.horizontal(|ui| {
                     if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
                         let net_info = get_selected_netinfo();
@@ -318,7 +313,7 @@ impl App for TriangleGator {
 
                     if ui.button("Reset Calculation").clicked() {
                         reset_calc(self);
-                        list_networks(self);
+                        self.network_manager.scan_networks();
                     }
                 });
             }
@@ -334,10 +329,6 @@ impl App for TriangleGator {
 // MAYBE ALSO A LOADING KINDA SWIRL OR BAR THING, THAT DISPLAYS WHILE TESTING A POINT, ONCE EVERY quarter SECOND, LIKE 5 TIMES
 // Im thinking, little bar graph, also disable reset_calc when bar graph is testing
 
-fn connect_to_network(network: &Network, password: String) -> bool {
-    return true;
-}
-
 fn get_selected_netinfo() -> NetInfo{
     return NetInfo {
         tx_power: Some(15.0),
@@ -346,52 +337,13 @@ fn get_selected_netinfo() -> NetInfo{
 }
 
 fn reset_calc(selph: &mut TriangleGator) {
-    selph.connected = false;
-    selph.selected_network = None;
+    selph.network_manager.reset_network_manager();
     selph.network_password = String::from("");
     selph.calculated_location = None;
     selph.points_scanned = 0;
 
     for i in 0..3 {
         selph.points[i].net_info = None;
-    }
-}
-
-fn list_networks(selph: &mut TriangleGator) {
-    if selph.selected_network.is_none() {
-        let output = Command::new("nmcli")
-        .args(&["-t", "-f", "SSID, SIGNAL, SECURITY", "dev", "wifi", "list"]) // maybe add , "list"
-        .output()
-        .expect("Failed to execute nmcli");
-
-        if output.status.success() {
-            selph.available_networks.clear();
-            let networks = String::from_utf8_lossy(&output.stdout);
-            if networks.trim().is_empty() {
-                print!("Could not find any networks");
-            } else {
-                for network in networks.lines() {
-                    let mut parts = network.splitn(3, ':'); // Split SSID and SIGNAL at the colon
-                    if let (Some(ssid), Some(signal), Some(security)) = (parts.next(), parts.next(), parts.next()) {
-                        if ssid != "" {
-
-                            let mut sec: Option<String> = None;
-
-                            if security != "" {
-                                sec = Some(security.parse().unwrap());
-                            }
-
-                            let network = Network::new(ssid.parse().unwrap(), signal.parse().unwrap(), sec);
-
-                            selph.available_networks.push(network);
-                            
-                        }
-                    }
-                }
-            }
-        } else {
-            eprintln!("Error running nmcli: {}", String::from_utf8_lossy(&output.stderr));
-        }
     }
 }
 
