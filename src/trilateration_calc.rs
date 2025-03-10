@@ -3,7 +3,7 @@ use nalgebra::{Vector3, Matrix3};
 #[derive(Clone)] 
 pub struct NetInfo {
     pub tx_power: Option<f32>,
-    pub measuered_power: Option<f32>,
+    pub measured_power: Option<f32>,
 }
 
 #[derive(Clone)] 
@@ -83,7 +83,7 @@ impl TrilaterationCalculator {
         let network_info= net_info.unwrap();
     
         let tx_power = network_info.tx_power.unwrap();
-        let measured_power = network_info.measuered_power.unwrap();
+        let measured_power = network_info.measured_power.unwrap();
     
         return base.powf((tx_power - measured_power) / (10.0 * path_loss_exponent));
     }

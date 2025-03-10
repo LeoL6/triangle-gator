@@ -1,5 +1,7 @@
 use std::process::Command;
 
+use crate::trilateration_calc::NetInfo;
+
 pub struct NetworkManager {
     available_networks: Vec<Network>, // Store networks in a vector
     selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
@@ -50,9 +52,9 @@ impl NetworkManager {
         //nmcli dev wifi connect "SSID"
         //nmcli dev wifi connect "SSID" password "YourPassword"
 
-        println!("Connecting to '{}' with password: {}", &self.get_selected_network().as_ref().unwrap().ssid, password);
-
         let ssid = &self.get_selected_network().as_ref().unwrap().ssid;
+
+        println!("Connecting to '{}' with password: {}", ssid, password);
 
         let output = Command::new("nmcli")
             .arg("dev")
@@ -142,6 +144,74 @@ impl NetworkManager {
                 eprintln!("Error running nmcli: {}", String::from_utf8_lossy(&output.stderr));
             }
         }
+    }
+
+    pub fn ping_network(&self) -> NetInfo {
+
+        return NetInfo { measured_power: Some(-38.0), tx_power: Some(15.0) };
+
+                    // fn get_wifi_info() -> Result<(), Box<dyn std::error::Error>> {
+                    //     // Execute the nmcli command to get both Tx Power and Signal Level
+                    //     let output = Command::new("nmcli")
+                    //         .arg("-f")
+                    //         .arg("txpower,sig")
+                    //         .arg("dev")
+                    //         .arg("wifi")
+                    //         .output()?;
+                    
+                    //     if !output.status.success() {
+                    //         return Err("Failed to execute nmcli".into());
+                    //     }
+                    
+                    //     // Convert the output to a string
+                    //     let output_str = str::from_utf8(&output.stdout)?;
+                    
+                    //     // Split the output into lines
+                    //     for line in output_str.lines().skip(1) { // Skip the header line
+                    //         let parts: Vec<&str> = line.split_whitespace().collect();
+                    
+                    //         if parts.len() >= 2 {
+                    //             let tx_power = parts[0]; // Tx Power
+                    //             let signal_level = parts[1]; // Signal Level
+                    //             println!("Tx Power: {}, Signal Level: {}", tx_power, signal_level);
+                    //         }
+                    //     }
+                    
+                    //     Ok(())
+                    // }
+
+        //nmcli -f txpower,sig dev wifi
+
+        // let output = Command::new("iwconfig")
+        // .output();
+
+        // if output.status.success() {
+        //     self.clear_available_networks();
+        //     let networks = String::from_utf8_lossy(&output.stdout);
+        //     if networks.trim().is_empty() {
+        //         print!("Could not find any networks");
+        //     } else {
+        //         for network in networks.lines() {
+        //             const NUM_OF_ARGS: usize = 3;
+        //             let mut parts = network.splitn(NUM_OF_ARGS, ':'); // Split SSID and SIGNAL at the colon
+        //             if let (Some(ssid), Some(signal), Some(security)) = (parts.next(), parts.next(), parts.next()) {
+        //                 if ssid != "" {
+
+        //                     let mut sec: Option<String> = None;
+
+        //                     if security != "" {
+        //                         sec = Some(security.parse().unwrap());
+        //                     }
+
+        //                     let network = Network::new(ssid.parse().unwrap(), signal.parse().unwrap(), sec);
+
+        //                     self.available_networks.push(network);
+                            
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 

@@ -6,10 +6,11 @@
 
 // THEN IF THERE IS SECURITY TYPE, ENTER PASSWORD OR SUM, AND THEN LOG IN WITH "nmcli dev wifi connect "SSID"" or nmcli dev wifi connect "SSID" password "YourPassword"
 
-pub mod utils;
+pub mod network_manager;
+pub mod trilateration_calc;
 
-use utils::network_manager::Network;
-use utils::trilateration_calc::{Location, NetInfo, Point, TrilaterationCalculator};
+use network_manager::{NetworkManager, Network};
+use trilateration_calc::{Location, NetInfo, Point, TrilaterationCalculator};
 
 use eframe::{*};
 use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
@@ -26,7 +27,7 @@ pub struct TriangleGator {
     network_password: String, // Network password (if there is one)
     // connected: bool, // Wether or not the user is currently connected to the desired network
     
-    network_manager: utils::network_manager::NetworkManager,
+    network_manager: network_manager::NetworkManager,
 
     points: [Point; 3],  // Triangle points
     selected_point: Option<usize>, // Index of selected point
@@ -50,7 +51,7 @@ impl Default for TriangleGator {
             // connected: false,
             network_password: String::from(""),
 
-            network_manager: utils::network_manager::NetworkManager::default(),
+            network_manager: NetworkManager::default(),
 
             points: [
                 Point::new(0.0, 0.0, None),  // Bottom left
@@ -178,7 +179,7 @@ impl App for TriangleGator {
                                             let screen_pos = plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y));
 
                                             if net_info.is_some() {
-                                                let measured_power: Option<f32> = net_info.unwrap().measuered_power;
+                                                let measured_power: Option<f32> = net_info.unwrap().measured_power;
 
                                                 plot_ui.ctx().debug_painter().text(
                                                     screen_pos,
@@ -290,7 +291,7 @@ impl App for TriangleGator {
             if self.network_manager.get_selected_network().is_some() & self.network_manager.get_connection_status() {
                 ui.horizontal(|ui| {
                     if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
-                        let net_info = get_selected_netinfo();
+                        let net_info = get_selected_netinfo(self);
 
                         self.points[self.selected_point.unwrap()].net_info = Some(net_info);
 
@@ -329,11 +330,8 @@ impl App for TriangleGator {
 // MAYBE ALSO A LOADING KINDA SWIRL OR BAR THING, THAT DISPLAYS WHILE TESTING A POINT, ONCE EVERY quarter SECOND, LIKE 5 TIMES
 // Im thinking, little bar graph, also disable reset_calc when bar graph is testing
 
-fn get_selected_netinfo() -> NetInfo{
-    return NetInfo {
-        tx_power: Some(15.0),
-        measuered_power: Some(-38.0),
-    }
+fn get_selected_netinfo(selph: &mut TriangleGator) -> NetInfo{
+    return selph.network_manager.ping_network();
 }
 
 fn reset_calc(selph: &mut TriangleGator) {
