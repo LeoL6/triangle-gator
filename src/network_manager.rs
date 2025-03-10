@@ -1,4 +1,7 @@
 use std::process::Command;
+use std::str;
+
+use std::{thread, time};
 
 use crate::trilateration_calc::NetInfo;
 
@@ -48,10 +51,6 @@ impl NetworkManager {
     }
 
     pub fn connect_to_network(&mut self, password: String) -> bool {
-
-        //nmcli dev wifi connect "SSID"
-        //nmcli dev wifi connect "SSID" password "YourPassword"
-
         let ssid = &self.get_selected_network().as_ref().unwrap().ssid;
 
         println!("Connecting to '{}' with password: {}", ssid, password);
@@ -90,20 +89,17 @@ impl NetworkManager {
             .arg("connection")
             .arg("down")
             .arg(ssid)
-            .output();
+            .output()
+            .expect("Failed to execute nmcli");
 
-        match output {
-            Ok(output) => {
-                if output.status.success() {
-                    println!("Successfully disconnected from '{}'", ssid);
-                } else {
-                    eprintln!(
-                        "Failed to disconnect: {}",
-                        String::from_utf8_lossy(&output.stderr)
-                    );
-                }
-            }
-            Err(e) => eprintln!("Error executing nmcli: {}", e),
+        
+        if output.status.success() {
+            println!("Successfully disconnected from '{}'", ssid);
+        } else {
+            eprintln!(
+                "Failed to disconnect: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     }
 
@@ -147,71 +143,58 @@ impl NetworkManager {
     }
 
     pub fn ping_network(&self) -> NetInfo {
+        // return NetInfo { measured_power: Some(-38.0), tx_power: Some(15.0) };
+        // Execute the nmcli command to get both Tx Power and Signal Level
 
-        return NetInfo { measured_power: Some(-38.0), tx_power: Some(15.0) };
+        let scan_range: i16 = 5;
 
-                    // fn get_wifi_info() -> Result<(), Box<dyn std::error::Error>> {
-                    //     // Execute the nmcli command to get both Tx Power and Signal Level
-                    //     let output = Command::new("nmcli")
-                    //         .arg("-f")
-                    //         .arg("txpower,sig")
-                    //         .arg("dev")
-                    //         .arg("wifi")
-                    //         .output()?;
-                    
-                    //     if !output.status.success() {
-                    //         return Err("Failed to execute nmcli".into());
-                    //     }
-                    
-                    //     // Convert the output to a string
-                    //     let output_str = str::from_utf8(&output.stdout)?;
-                    
-                    //     // Split the output into lines
-                    //     for line in output_str.lines().skip(1) { // Skip the header line
-                    //         let parts: Vec<&str> = line.split_whitespace().collect();
-                    
-                    //         if parts.len() >= 2 {
-                    //             let tx_power = parts[0]; // Tx Power
-                    //             let signal_level = parts[1]; // Signal Level
-                    //             println!("Tx Power: {}, Signal Level: {}", tx_power, signal_level);
-                    //         }
-                    //     }
-                    
-                    //     Ok(())
-                    // }
+        let hundredmilli = time::Duration::from_millis(100);
 
-        //nmcli -f txpower,sig dev wifi
+        let mut signal_strength = 0.0;
+        let mut tx_power = 0.0;
+        
+        for i in 0..scan_range {
 
-        // let output = Command::new("iwconfig")
-        // .output();
+            let output = Command::new("iwconfig")
+                .output()
+                .expect("Failed to execute iwconfig");
 
-        // if output.status.success() {
-        //     self.clear_available_networks();
-        //     let networks = String::from_utf8_lossy(&output.stdout);
-        //     if networks.trim().is_empty() {
-        //         print!("Could not find any networks");
-        //     } else {
-        //         for network in networks.lines() {
-        //             const NUM_OF_ARGS: usize = 3;
-        //             let mut parts = network.splitn(NUM_OF_ARGS, ':'); // Split SSID and SIGNAL at the colon
-        //             if let (Some(ssid), Some(signal), Some(security)) = (parts.next(), parts.next(), parts.next()) {
-        //                 if ssid != "" {
+            if !output.status.success() {
+                println!("Failed to execute iwconfig");
+            }
 
-        //                     let mut sec: Option<String> = None;
+            let output_str = str::from_utf8(&output.stdout).unwrap();
+            
+            for line in output_str.lines() {
+                if line.contains("Signal level=") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    for part in parts {
+                        if part.starts_with("level=") {
+                            if let Some(value_str) = part.strip_prefix("level=") {
+                                if let Ok(value) = value_str.replace("dBm", "").parse::<f32>() {
+                                    signal_strength += value;
+                                }
+                            }
+                        }
+                    }
+                }
+                if line.contains("Tx-Power=") {
+                    if let Some(start) = line.find("Tx-Power=") {
+                        let tx_power_part = &line[start..];
+                        let parts: Vec<&str> = tx_power_part.split_whitespace().collect();
+                        if parts.len() > 1 {
+                            if let Ok(value) = parts[0].split('=').nth(1).unwrap_or("0").parse::<f32>() {
+                                tx_power = value;
+                            }
+                        }
+                    }
+                }
+            }
 
-        //                     if security != "" {
-        //                         sec = Some(security.parse().unwrap());
-        //                     }
+            thread::sleep(hundredmilli);
+        }
 
-        //                     let network = Network::new(ssid.parse().unwrap(), signal.parse().unwrap(), sec);
-
-        //                     self.available_networks.push(network);
-                            
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        return NetInfo { measured_power: Some(signal_strength / f32::from(scan_range)), tx_power: Some(tx_power / f32::from(scan_range)) };
     }
 }
 
