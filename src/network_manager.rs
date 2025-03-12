@@ -11,15 +11,17 @@ pub struct NetworkManager {
     connected: bool, // Wether or not the user is currently connected to the desired network
 }
 
-impl NetworkManager {
-    pub fn default() -> Self {
+impl Default for NetworkManager {
+    fn default() -> Self {
         Self {
             available_networks: Vec::new(),
             selected_network: None,
             connected: false,
         }
     }
+}
 
+impl NetworkManager {
     pub fn get_available_networks(&self) -> &Vec<Network> {
         return &self.available_networks;
     }

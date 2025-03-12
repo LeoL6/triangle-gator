@@ -37,6 +37,10 @@ impl Default for TrilaterationCalculator {
 }
 
 impl TrilaterationCalculator {
+    pub fn set_path_loss_exponent(&mut self, path_loss_exponent: f32) {
+        self.path_loss_exponent = path_loss_exponent;
+    }
+
     pub fn get_location(&self, point_one: &Point, point_two: &Point, point_three: &Point) -> Location {
         // """
         // Calculates the estimated location based on the measured power in dBm and transmit power in dBm

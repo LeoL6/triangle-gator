@@ -9,6 +9,8 @@
 pub mod network_manager;
 pub mod trilateration_calc;
 
+use std::ops::RangeInclusive;
+
 use network_manager::{NetworkManager, Network};
 use trilateration_calc::{Location, NetInfo, Point, TrilaterationCalculator};
 
@@ -17,19 +19,24 @@ use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
 use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
-use egui::{Button, Color32, Stroke, Theme, ViewportCommand};
+use egui::{Button, DragValue, Color32, Stroke, Theme, ViewportCommand};
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 
 pub struct TriangleGator {
     // available_networks: Vec<Network>, // Store networks in a vector
     // selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
-    network_password: String, // Network password (if there is one)
     // connected: bool, // Wether or not the user is currently connected to the desired network
     
     network_manager: network_manager::NetworkManager,
+    trilat_calc: trilateration_calc::TrilaterationCalculator,
+
+    network_password: String, // Network password (if there is one)
+
+    // selected_side
 
     points: [Point; 3],  // Triangle points
+    path_loss_exponent: f32, // User defined path loss exponent
     selected_point: Option<usize>, // Index of selected point
     calculated_location: Option<Location>, // Calculated Location of Network.
 
@@ -49,15 +56,18 @@ impl Default for TriangleGator {
             // available_networks: Vec::new(),
             // selected_network: None,
             // connected: false,
-            network_password: String::from(""),
 
             network_manager: NetworkManager::default(),
+            trilat_calc: TrilaterationCalculator::default(),
+
+            network_password: String::from(""),
 
             points: [
                 Point::new(0.0, 0.0, None),  // Bottom left
                 Point::new(100.0, 0.0, None),  // Bottom right
                 Point::new(50.0, 86.0, None),  // Top
             ],
+            path_loss_exponent: 2.5, // Default path loss exponent of 2.5
             selected_point: None,
             calculated_location: None,
 
@@ -269,54 +279,62 @@ impl App for TriangleGator {
                     });
             });
             
-            if self.network_manager.get_selected_network().is_some() && !self.network_manager.get_connection_status() {
-                let selected_network = self.network_manager.get_selected_network().as_ref().unwrap();
-
-                ui.label(selected_network.ssid.clone());
-
-                if selected_network.security.is_some() {
+            if self.network_manager.get_selected_network().is_some() {
+                if self.network_manager.get_connection_status() {
                     ui.horizontal(|ui| {
-                        ui.label("Password");
-                        ui.text_edit_singleline(&mut self.network_password);  
+                        if ui.add_enabled(self.selected_point.is_some(), Button::new("Test Point")).clicked() {
+                            let net_info = get_selected_netinfo(self);
+    
+                            self.points[self.selected_point.unwrap()].net_info = Some(net_info);
+    
+                            self.points_scanned += 1;
+                            
+                            self.selected_point = None;
+                        }   
+    
+                        if ui.add_enabled(self.points_scanned >= 3, Button::new("Calculate")).clicked() {
+                            // Set path loss exponent to user input right before calculation
+                            self.trilat_calc.set_path_loss_exponent(self.path_loss_exponent);
+
+                            let location = self.trilat_calc.get_location(&self.points[0], &self.points[1], &self.points[2]);
+    
+                            println!("Estimated WAP Location: ({:.2}, {:.2})", location.x, location.y);
+    
+                            self.calculated_location = Some(location);
+    
+                            self.points_scanned = 0;
+                        }
+    
+                        if ui.button("Reset Calculation").clicked() {
+                            reset_calc(self);
+                            self.network_manager.scan_networks();
+                        }
                     });
-                }
 
-                if ui.button("Connect").clicked() {
-                    let connected = self.network_manager.connect_to_network(self.network_password.clone());
-                    self.network_manager.is_connected(connected);
-                    
-                }
-            }
-            
-            if self.network_manager.get_selected_network().is_some() & self.network_manager.get_connection_status() {
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(self.selected_point.is_some(),Button::new("Test Point")).clicked() {
-                        let net_info = get_selected_netinfo(self);
+                    if self.selected_point.is_some() {
+                        ui.horizontal(|ui| {
+                            ui.label("Path Loss Exponent");
+                            ui.add(DragValue::new(&mut self.path_loss_exponent).speed(0.1).range(RangeInclusive::new(1, 5.0)));
+                        });
+                    }
+                } else {
+                    let selected_network = self.network_manager.get_selected_network().as_ref().unwrap();
 
-                        self.points[self.selected_point.unwrap()].net_info = Some(net_info);
+                    ui.label(selected_network.ssid.clone());
 
-                        self.points_scanned += 1;
+                    if selected_network.security.is_some() {
+                        ui.horizontal(|ui| {
+                            ui.label("Password");
+                            ui.text_edit_singleline(&mut self.network_password);  
+                        });
+                    }
+
+                    if ui.button("Connect").clicked() {
+                        let connected = self.network_manager.connect_to_network(self.network_password.clone());
+                        self.network_manager.is_connected(connected);
                         
-                        self.selected_point = None;
-                    }   
-
-                    if ui.add_enabled(self.points_scanned == 3, Button::new("Calculate")).clicked() {
-                        let trilat_calc = TrilaterationCalculator::default();
-
-                        let location = trilat_calc.get_location(&self.points[0], &self.points[1], &self.points[2]);
-
-                        println!("Estimated WAP Location: ({:.2}, {:.2})", location.x, location.y);
-
-                        self.calculated_location = Some(location);
-
-                        self.points_scanned = 0;
                     }
-
-                    if ui.button("Reset Calculation").clicked() {
-                        reset_calc(self);
-                        self.network_manager.scan_networks();
-                    }
-                });
+                }
             }
 
             // ui.link(text) FULLY OPEN SOURCE PROJECT BY LEONARDO LEES
