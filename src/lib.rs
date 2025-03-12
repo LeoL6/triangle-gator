@@ -19,7 +19,7 @@ use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
 use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
-use egui::{Button, DragValue, Color32, Stroke, Theme, ViewportCommand};
+use egui::{Button, Color32, DragValue, Stroke, TextEdit, Theme, ViewportCommand};
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 
@@ -281,59 +281,70 @@ impl App for TriangleGator {
             
             if self.network_manager.get_selected_network().is_some() {
                 if self.network_manager.get_connection_status() {
-                    ui.horizontal(|ui| {
-                        if ui.add_enabled(self.selected_point.is_some(), Button::new("Test Point")).clicked() {
-                            let net_info = get_selected_netinfo(self);
-    
-                            self.points[self.selected_point.unwrap()].net_info = Some(net_info);
-    
-                            self.points_scanned += 1;
-                            
-                            self.selected_point = None;
-                        }   
-    
-                        if ui.add_enabled(self.points_scanned >= 3, Button::new("Calculate")).clicked() {
-                            // Set path loss exponent to user input right before calculation
-                            self.trilat_calc.set_path_loss_exponent(self.path_loss_exponent);
+                    // ui.horizontal(|ui| {
+                    ui.columns(3, |ui| {
+                        ui[0].vertical_centered(|ui| {
+                            if ui.add_enabled(self.selected_point.is_some(), Button::new("Test Point")).clicked() {
+                                let net_info = get_selected_netinfo(self);
+        
+                                self.points[self.selected_point.unwrap()].net_info = Some(net_info);
+        
+                                self.points_scanned += 1;
+                                
+                                self.selected_point = None;
+                            }   
+                        });
 
-                            let location = self.trilat_calc.get_location(&self.points[0], &self.points[1], &self.points[2]);
-    
-                            println!("Estimated WAP Location: ({:.2}, {:.2})", location.x, location.y);
-    
-                            self.calculated_location = Some(location);
-    
-                            self.points_scanned = 0;
-                        }
-    
-                        if ui.button("Reset Calculation").clicked() {
-                            reset_calc(self);
-                            self.network_manager.scan_networks();
-                        }
+                        ui[1].vertical_centered(|ui| {
+                            if ui.add_enabled(self.points_scanned >= 3, Button::new("Calculate")).clicked() {
+                                // Set path loss exponent to user input right before calculation
+                                self.trilat_calc.set_path_loss_exponent(self.path_loss_exponent);
+
+                                let location = self.trilat_calc.get_location(&self.points[0], &self.points[1], &self.points[2]);
+        
+                                println!("Estimated WAP Location: ({:.2}, {:.2})", location.x, location.y);
+        
+                                self.calculated_location = Some(location);
+        
+                                self.points_scanned = 0;
+                            }
+                        });
+                        
+                        ui[2].vertical_centered(|ui| {
+                            if ui.button("Reset").clicked() {
+                                reset_calc(self);
+                                self.network_manager.scan_networks();
+                            }
+                        });
                     });
 
                     if self.selected_point.is_some() {
-                        ui.horizontal(|ui| {
+                        ui.vertical_centered(|ui| {
                             ui.label("Path Loss Exponent");
-                            ui.add(DragValue::new(&mut self.path_loss_exponent).speed(0.1).range(RangeInclusive::new(1.0, 5.0)));
+                            ui.add(DragValue::new(&mut self.path_loss_exponent).speed(0.1).range(RangeInclusive::new(2.0, 5.0)));
                         });
                     }
                 } else {
-                    let selected_network = self.network_manager.get_selected_network().as_ref().unwrap();
+                    ui.vertical_centered(|ui| {
+                        let selected_network = self.network_manager.get_selected_network().as_ref().unwrap();
 
-                    ui.label(selected_network.ssid.clone());
+                        ui.label(selected_network.ssid.clone());
 
-                    if selected_network.security.is_some() {
-                        ui.horizontal(|ui| {
-                            ui.label("Password");
-                            ui.text_edit_singleline(&mut self.network_password);  
-                        });
-                    }
+                        if selected_network.security.is_some() {
+                                let password_field = TextEdit::singleline(&mut self.network_password).desired_width(100.0).hint_text("password");
+                                ui.add(password_field); 
+                        }
 
-                    if ui.button("Connect").clicked() {
-                        let connected = self.network_manager.connect_to_network(self.network_password.clone());
-                        self.network_manager.is_connected(connected);
-                        
-                    }
+                        if ui.button("Connect").clicked() {
+                            let connected = self.network_manager.connect_to_network(self.network_password.clone());
+                            self.network_manager.is_connected(connected);
+                            
+                        }
+
+                        // if ui.button("Test").clicked() {
+                        //     self.network_manager.is_connected(true);
+                        // }
+                    });
                 }
             }
 
