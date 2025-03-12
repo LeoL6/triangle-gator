@@ -155,7 +155,7 @@ impl NetworkManager {
         let mut signal_strength = 0.0;
         let mut tx_power = 0.0;
         
-        for i in 0..scan_range {
+        for _ in 0..scan_range {
 
             let output = Command::new("iwconfig")
                 .output()
