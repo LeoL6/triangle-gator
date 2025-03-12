@@ -314,7 +314,7 @@ impl App for TriangleGator {
                     if self.selected_point.is_some() {
                         ui.horizontal(|ui| {
                             ui.label("Path Loss Exponent");
-                            ui.add(DragValue::new(&mut self.path_loss_exponent).speed(0.1).range(RangeInclusive::new(1, 5.0)));
+                            ui.add(DragValue::new(&mut self.path_loss_exponent).speed(0.1).range(RangeInclusive::new(1.0, 5.0)));
                         });
                     }
                 } else {
