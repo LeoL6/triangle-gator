@@ -19,7 +19,7 @@ use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
 use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
 
-use egui::{Button, Color32, DragValue, Stroke, TextEdit, Theme, ViewportCommand};
+use egui::{Button, Color32, DragValue, Hyperlink, Pos2, Stroke, TextEdit, Theme, ViewportCommand};
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 
@@ -343,13 +343,14 @@ impl App for TriangleGator {
 
                         // if ui.button("Test").clicked() {
                         //     self.network_manager.is_connected(true);
-                        // }
+                        // }20
                     });
                 }
             }
-
-            // ui.link(text) FULLY OPEN SOURCE PROJECT BY LEONARDO LEES
-            // GITHUB (LINK)
+            
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                ui.hyperlink_to("Open Source Project by Leonardo Lees", "https://github.com/LeoL6/triangle-gator");
+            });
         });
     }
 }
