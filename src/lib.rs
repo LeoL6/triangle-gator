@@ -17,9 +17,9 @@ use trilateration_calc::{Location, NetInfo, Point, TrilaterationCalculator};
 use eframe::{*};
 use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
-use egui_plot::{Legend, PlotPoint, PlotPoints, Polygon};
+use egui_plot::{Legend, Plot, PlotPoint, PlotPoints, PlotUi, Polygon};
 
-use egui::{Button, Color32, DragValue, Hyperlink, Pos2, Stroke, TextEdit, Theme, ViewportCommand};
+use egui::{Button, Color32, DragValue, Pos2, Stroke, TextEdit, Theme, ViewportCommand, Align, Layout};
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 
@@ -89,7 +89,9 @@ impl App for TriangleGator {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut Frame) {
-        self.network_manager.scan_networks();
+        if !self.network_manager.get_connection_status() {
+            self.network_manager.scan_networks();
+        }
 
         custom_window_frame(ctx, "Triangle Gator", |ui| {
             ctx.set_theme(Theme::Dark);
@@ -117,7 +119,7 @@ impl App for TriangleGator {
                         });
 
                         if self.network_manager.get_selected_network().is_some() && self.network_manager.get_connection_status() {
-                            egui_plot::Plot::new("plot")
+                            Plot::new("plot")
                             .allow_zoom(false)
                             .allow_drag(false)
                             .allow_scroll(false)
@@ -178,12 +180,8 @@ impl App for TriangleGator {
 
                                 // HOVER DETECTION CODE
                                 if let Some(pointer_pos) = plot_ui.pointer_coordinate() {
-                                    let hover_threshold = 3.0;
-
                                     for (index, point) in self.points.iter().enumerate() {
-                                        let distance = ((pointer_pos.x - f64::from(point.x)).powi(2) + (pointer_pos.y - f64::from(point.y)).powi(2)).sqrt();
-
-                                        if distance < hover_threshold {
+                                        if point_is_hovered(point, pointer_pos) {
                                             let net_info = point.net_info.as_ref();
                                             // let screen_pos = plot_ui.transform().position_from_point(&pointer_pos);
                                             let screen_pos = plot_ui.transform().position_from_point(&PlotPoint::new(self.points[index].x, self.points[index].y));
@@ -215,39 +213,13 @@ impl App for TriangleGator {
                                 if self.selected_point.is_some() {
                                     let selected_point = self.points[self.selected_point.unwrap()].clone();
 
-                                    let point_x = f64::from(selected_point.x);
-                                    let point_y = f64::from(selected_point.y);
-
-                                    let points_vec = vec![
-                                        [point_x - 3.0, point_y],
-                                        [point_x, point_y + 3.0],
-                                        [point_x + 3.0, point_y],
-                                        [point_x, point_y- 3.0],
-                                    ];
-
-                                    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).allow_hover(false).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
-
-                                    plot_ui.polygon(point_bounds);
+                                    plot_point(plot_ui, selected_point.x, selected_point.y);
                                 }
 
                                 if self.calculated_location.is_some() {
                                     let calculated_loc = self.calculated_location.as_ref().unwrap();
                                     
-                                    let x = f64::from(calculated_loc.x);
-                                    let y = f64::from(calculated_loc.y);
-
-                                    let points_vec = vec![
-                                        [x - 3.0, y],
-                                        [x, y + 3.0],
-                                        [x + 3.0, y],
-                                        [x, y- 3.0],
-                                    ];
-
-                                    // let selected_point_circle_shape = CircleShape { center: Pos2::new(selected_point.x, selected_point.y), radius: 3.0, fill: Color32::from_rgba_unmultiplied(255, 255, 255, 50), stroke: Stroke::new(2.0, Color32::RED) };
-
-                                    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
-
-                                    plot_ui.polygon(point_bounds);
+                                    plot_point(plot_ui, calculated_loc.x, calculated_loc.y);
                                 }
 
                                 // if plot_ui.response().hovered() && pointer_down {
@@ -343,12 +315,12 @@ impl App for TriangleGator {
 
                         // if ui.button("Test").clicked() {
                         //     self.network_manager.is_connected(true);
-                        // }20
+                        // }
                     });
                 }
             }
             
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+            ui.with_layout(Layout::bottom_up(Align::Center), |ui| {
                 ui.hyperlink_to("Open Source Project by Leonardo Lees", "https://github.com/LeoL6/triangle-gator");
             });
         });
@@ -359,6 +331,45 @@ impl App for TriangleGator {
 
 // MAYBE ALSO A LOADING KINDA SWIRL OR BAR THING, THAT DISPLAYS WHILE TESTING A POINT, ONCE EVERY quarter SECOND, LIKE 5 TIMES
 // Im thinking, little bar graph, also disable reset_calc when bar graph is testing
+
+// Function to calculate the closest point on a line segment from a given point
+fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
+    let line_vec = end - start;
+
+    let point_vec = point - start;
+
+    // Project the point onto the line (clamped between the start and end points)
+    let t = (point_vec.x * line_vec.x + point_vec.y * line_vec.y) / (line_vec.x * line_vec.x + line_vec.y * line_vec.y);
+
+    let t = t.clamp(0.0, 1.0);
+ 
+    // Calculate the closest point on the line
+    start + t * line_vec
+}
+
+fn point_is_hovered(point: &Point, pointer_pos: PlotPoint) -> bool {
+    let hover_threshold = 3.0;
+
+    let distance = ((pointer_pos.x - f64::from(point.x)).powi(2) + (pointer_pos.y - f64::from(point.y)).powi(2)).sqrt();
+
+    return distance < hover_threshold;
+}
+
+fn plot_point(plot_ui: &mut PlotUi, x: f32, y: f32) {
+    let point_x = f64::from(x);
+    let point_y = f64::from(y);
+
+    let points_vec = vec![
+        [point_x - 3.0, point_y],
+        [point_x, point_y + 3.0],
+        [point_x + 3.0, point_y],
+        [point_x, point_y- 3.0],
+    ];
+
+    let point_bounds = Polygon::new(PlotPoints::from(points_vec)).allow_hover(false).fill_color(Color32::from_rgba_unmultiplied(255, 0, 0, 80)).stroke(Stroke::new(2.0, Color32::RED));
+
+    plot_ui.polygon(point_bounds);
+}
 
 fn get_selected_netinfo(selph: &mut TriangleGator) -> NetInfo{
     return selph.network_manager.ping_network();
