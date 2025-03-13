@@ -33,14 +33,13 @@ pub struct TriangleGator {
 
     network_password: String, // Network password (if there is one)
 
-    // selected_side
-
     points: [Point; 3],  // Triangle points
     path_loss_exponent: f32, // User defined path loss exponent
     selected_point: Option<usize>, // Index of selected point
     calculated_location: Option<Location>, // Calculated Location of Network.
 
-    points_scanned: u8,
+    sample_scale: u16,
+    sample_length: u64,
 
     lock_x: bool,
     lock_y: bool,
@@ -71,7 +70,8 @@ impl Default for TriangleGator {
             selected_point: None,
             calculated_location: None,
 
-            points_scanned: 0,
+            sample_scale: 5,
+            sample_length: 100,
 
             lock_x: false,
             lock_y: false,
@@ -253,22 +253,21 @@ impl App for TriangleGator {
             
             if self.network_manager.get_selected_network().is_some() {
                 if self.network_manager.get_connection_status() {
-                    // ui.horizontal(|ui| {
+                    let ready_to_scan = self.network_manager.ready_to_calc(&self.points);
+
                     ui.columns(3, |ui| {
                         ui[0].vertical_centered(|ui| {
                             if ui.add_enabled(self.selected_point.is_some(), Button::new("Test Point")).clicked() {
-                                let net_info = get_selected_netinfo(self);
+                                let net_info = get_selected_netinfo(&self.network_manager, self.sample_scale, self.sample_length);
         
                                 self.points[self.selected_point.unwrap()].net_info = Some(net_info);
-        
-                                self.points_scanned += 1;
                                 
                                 self.selected_point = None;
                             }   
                         });
 
                         ui[1].vertical_centered(|ui| {
-                            if ui.add_enabled(self.points_scanned >= 3, Button::new("Calculate")).clicked() {
+                            if ui.add_enabled(ready_to_scan, Button::new("Calculate")).clicked() {
                                 // Set path loss exponent to user input right before calculation
                                 self.trilat_calc.set_path_loss_exponent(self.path_loss_exponent);
 
@@ -277,8 +276,8 @@ impl App for TriangleGator {
                                 println!("Estimated WAP Location: ({:.2}, {:.2})", location.x, location.y);
         
                                 self.calculated_location = Some(location);
-        
-                                self.points_scanned = 0;
+
+                                reset_netinfo(self);
                             }
                         });
                         
@@ -291,6 +290,20 @@ impl App for TriangleGator {
                     });
 
                     if self.selected_point.is_some() {
+                        ui.columns(2, |ui| {
+                            ui[0].vertical_centered(|ui| {
+                                ui.label("Sample Scale");
+                                ui.add(DragValue::new(&mut self.sample_scale).speed(1).range(RangeInclusive::new(1, 20)));
+                            });
+
+                            ui[1].vertical_centered(|ui| {
+                                ui.label("Sample Length");
+                                ui.add(DragValue::new(&mut self.sample_length).speed(1).range(RangeInclusive::new(1, 2000)));
+                            });
+                        });
+                    }
+
+                    if ready_to_scan {
                         ui.vertical_centered(|ui| {
                             ui.label("Path Loss Exponent");
                             ui.add(DragValue::new(&mut self.path_loss_exponent).speed(0.1).range(RangeInclusive::new(2.0, 5.0)));
@@ -371,16 +384,19 @@ fn plot_point(plot_ui: &mut PlotUi, x: f32, y: f32) {
     plot_ui.polygon(point_bounds);
 }
 
-fn get_selected_netinfo(selph: &mut TriangleGator) -> NetInfo{
-    return selph.network_manager.ping_network();
+fn get_selected_netinfo(network_manager: &NetworkManager, sample_scale: u16, sample_length: u64) -> NetInfo{
+    return network_manager.ping_network(sample_scale, sample_length);
 }
 
 fn reset_calc(selph: &mut TriangleGator) {
     selph.network_manager.reset_network_manager();
     selph.network_password = String::from("");
     selph.calculated_location = None;
-    selph.points_scanned = 0;
 
+    reset_netinfo(selph);
+}
+
+fn reset_netinfo(selph: &mut TriangleGator) {
     for i in 0..3 {
         selph.points[i].net_info = None;
     }

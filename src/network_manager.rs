@@ -3,11 +3,12 @@ use std::str;
 
 use std::{thread, time};
 
-use crate::trilateration_calc::NetInfo;
+use crate::trilateration_calc::{NetInfo, Point};
 
 pub struct NetworkManager {
     available_networks: Vec<Network>, // Store networks in a vector
     selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
+
     connected: bool, // Wether or not the user is currently connected to the desired network
 }
 
@@ -16,12 +17,17 @@ impl Default for NetworkManager {
         Self {
             available_networks: Vec::new(),
             selected_network: None,
+
             connected: false,
         }
     }
 }
 
 impl NetworkManager {
+    pub fn ready_to_calc(&self, points: &[Point; 3]) -> bool {
+        return self.get_selected_network().is_some() && points.iter().all(|point| point.net_info.is_some());
+    }
+
     pub fn get_available_networks(&self) -> &Vec<Network> {
         return &self.available_networks;
     }
@@ -144,18 +150,16 @@ impl NetworkManager {
         }
     }
 
-    pub fn ping_network(&self) -> NetInfo {
+    pub fn ping_network(&self, sample_scale: u16, sample_length: u64) -> NetInfo {
         // return NetInfo { measured_power: Some(-38.0), tx_power: Some(15.0) };
         // Execute the nmcli command to get both Tx Power and Signal Level
 
-        let scan_range: i16 = 5;
-
-        let hundredmilli = time::Duration::from_millis(100);
+        let sample_length = time::Duration::from_millis(sample_length);
 
         let mut signal_strength = 0.0;
         let mut tx_power = 0.0;
         
-        for _ in 0..scan_range {
+        for _ in 0..sample_scale {
 
             let output = Command::new("iwconfig")
                 .output()
@@ -193,10 +197,10 @@ impl NetworkManager {
                 }
             }
 
-            thread::sleep(hundredmilli);
+            thread::sleep(sample_length);
         }
 
-        return NetInfo { measured_power: Some(signal_strength / f32::from(scan_range)), tx_power: Some(tx_power / f32::from(scan_range)) };
+        return NetInfo { measured_power: Some(signal_strength / f32::from(sample_scale)), tx_power: Some(tx_power / f32::from(sample_scale)) };
     }
 }
 
