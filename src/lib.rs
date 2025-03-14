@@ -19,7 +19,7 @@ use eframe::egui::{self, Event, Vec2, FontId, FontFamily};
 
 use egui_plot::{Legend, Plot, PlotPoint, PlotPoints, PlotUi, Polygon};
 
-use egui::{Button, Color32, DragValue, Pos2, Stroke, TextEdit, Theme, ViewportCommand, Align, Layout};
+use egui::{Button, Color32, DragValue, Stroke, TextEdit, Theme, ViewportCommand, Align, Layout};
 
 // COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
 
@@ -66,12 +66,12 @@ impl Default for TriangleGator {
                 Point::new(100.0, 0.0, None),  // Bottom right
                 Point::new(50.0, 86.0, None),  // Top
             ],
-            path_loss_exponent: 2.5, // Default path loss exponent of 2.5
+            path_loss_exponent: 3.0, // Default path loss exponent of 3.0
             selected_point: None,
             calculated_location: None,
 
-            sample_scale: 5,
-            sample_length: 100,
+            sample_scale: 10,
+            sample_length: 200,
 
             lock_x: false,
             lock_y: false,
@@ -344,21 +344,6 @@ impl App for TriangleGator {
 
 // MAYBE ALSO A LOADING KINDA SWIRL OR BAR THING, THAT DISPLAYS WHILE TESTING A POINT, ONCE EVERY quarter SECOND, LIKE 5 TIMES
 // Im thinking, little bar graph, also disable reset_calc when bar graph is testing
-
-// Function to calculate the closest point on a line segment from a given point
-fn closest_point_on_line_segment(point: Pos2, start: Pos2, end: Pos2) -> Pos2 {
-    let line_vec = end - start;
-
-    let point_vec = point - start;
-
-    // Project the point onto the line (clamped between the start and end points)
-    let t = (point_vec.x * line_vec.x + point_vec.y * line_vec.y) / (line_vec.x * line_vec.x + line_vec.y * line_vec.y);
-
-    let t = t.clamp(0.0, 1.0);
- 
-    // Calculate the closest point on the line
-    start + t * line_vec
-}
 
 fn point_is_hovered(point: &Point, pointer_pos: PlotPoint) -> bool {
     let hover_threshold = 3.0;
