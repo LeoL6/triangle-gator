@@ -2,10 +2,6 @@
 
 // BROWN SUGAR OAT AMERICANO
 
-// MAKE SELECTED NETWORK AND AVAILABLE NETWORKS INTO STRUCT THAT HAS NAME, SIGNAL STRENGTH, TX, SECURITY TYPE
-
-// THEN IF THERE IS SECURITY TYPE, ENTER PASSWORD OR SUM, AND THEN LOG IN WITH "nmcli dev wifi connect "SSID"" or nmcli dev wifi connect "SSID" password "YourPassword"
-
 pub mod network_manager;
 pub mod trilateration_calc;
 
@@ -21,13 +17,7 @@ use egui_plot::{Legend, Plot, PlotPoint, PlotPoints, PlotUi, Polygon};
 
 use egui::{Button, Color32, DragValue, Stroke, TextEdit, Theme, ViewportCommand, Align, Layout};
 
-// COME UP WITH UNIQUE STANDALONE METHOD FOR DRAWING POINTS AND SUCH AS A CLIKCABLE, HOVERABLE UI POINT, PROBABLY AS ITS OWN PLOT
-
 pub struct TriangleGator {
-    // available_networks: Vec<Network>, // Store networks in a vector
-    // selected_network: Option<Network>, // Store the currently selected network REPLACE WITH NETWORK STRUCT
-    // connected: bool, // Wether or not the user is currently connected to the desired network
-    
     network_manager: network_manager::NetworkManager,
     trilat_calc: trilateration_calc::TrilaterationCalculator,
 
@@ -52,10 +42,6 @@ pub struct TriangleGator {
 impl Default for TriangleGator {
     fn default() -> Self {
         Self {
-            // available_networks: Vec::new(),
-            // selected_network: None,
-            // connected: false,
-
             network_manager: NetworkManager::default(),
             trilat_calc: TrilaterationCalculator::default(),
 
@@ -221,13 +207,6 @@ impl App for TriangleGator {
                                     
                                     plot_point(plot_ui, calculated_loc.x, calculated_loc.y);
                                 }
-
-                                // if plot_ui.response().hovered() && pointer_down {
-                                //     let mut pointer_translate = -plot_ui.pointer_coordinate_drag_delta();
-                                //     if line {
-                                //         pointer_translate.x = 0.0;
-                                //     }
-                                // }
                             });
                         } else {
                             let mut selected_network = None;
